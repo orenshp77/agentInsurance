@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AGENT
+  CLIENT
+}
+
+enum Category {
+  INSURANCE
+  FINANCE
+  CAR
+}
+
+enum ErrorLevel {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(CLIENT)
+  name      String
+  phone     String?
+  idNumber  String?  @unique
+
+  // Agent relationship - clients belong to agents
+  agentId   String?
+  agent     User?    @relation("AgentClients", fields: [agentId], references: [id])
+  clients   User[]   @relation("AgentClients")
+
+  // User's folders
+  folders   Folder[]
+
+  // User's notifications
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+  @@index([role])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  type        String   // FILE_UPLOAD, FOLDER_CREATED, etc.
+  isRead      Boolean  @default(false)
+
+  // Notification belongs to a user
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  category  Category
+
+  // Folder belongs to a user
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Files in this folder
+  files     File[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+}
+
+model File {
+  id        String   @id @default(cuid())
+  url       String
+  fileType  String   // PDF, PNG, JPG
+  fileName  String
+  notes     String?  // Agent notes
+
+  // File belongs to a folder
+  folderId  String
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([folderId])
+}
+
+model Log {
+  id         String     @id @default(cuid())
+  message    String
+  errorLevel ErrorLevel @default(INFO)
+  aiFix      String?    // AI_Solution field for automatic bug fixes
+  metadata   String?    // Additional context data (JSON string)
+
+  createdAt  DateTime   @default(now())
+
+  @@index([errorLevel])
+  @@index([createdAt])
+}
