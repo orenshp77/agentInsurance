@@ -13,13 +13,22 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
+    const agentId = searchParams.get('agentId')
 
     let users
 
     if (session.user.role === 'ADMIN') {
-      // Admin can see all users
+      // Admin can see all users, optionally filtered by agentId
+      const whereClause: Record<string, unknown> = {}
+      if (role) {
+        whereClause.role = role as 'ADMIN' | 'AGENT' | 'CLIENT'
+      }
+      if (agentId) {
+        whereClause.agentId = agentId
+      }
+
       users = await prisma.user.findMany({
-        where: role ? { role: role as 'ADMIN' | 'AGENT' | 'CLIENT' } : undefined,
+        where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
         select: {
           id: true,
           email: true,

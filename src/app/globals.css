@@ -88,13 +88,14 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   min-height: 100vh;
 }
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Pencil, Trash2, ArrowRight, FolderOpen, MessageCircle, Eye, UserPlus, Link2, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -26,6 +26,8 @@ interface Client {
 export default function AgentClientsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const agentId = searchParams.get('agentId')
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -40,6 +42,7 @@ export default function AgentClientsPage() {
   const [showRegisterLink, setShowRegisterLink] = useState(false)
   const [copied, setCopied] = useState(false)
   const [newClientPhone, setNewClientPhone] = useState('')
+  const [agentName, setAgentName] = useState<string>('')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -52,12 +55,30 @@ export default function AgentClientsPage() {
   useEffect(() => {
     if (session?.user) {
       fetchClients()
+      if (agentId && session.user.role === 'ADMIN') {
+        fetchAgentName()
+      }
     }
-  }, [session])
+  }, [session, agentId])
+
+  const fetchAgentName = async () => {
+    try {
+      const res = await fetch(`/api/users/${agentId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAgentName(data.name)
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/users?role=CLIENT')
+      const url = agentId
+        ? `/api/users?role=CLIENT&agentId=${agentId}`
+        : '/api/users?role=CLIENT'
+      const res = await fetch(url)
       const data = await res.json()
       setClients(data)
     } catch (error) {
@@ -286,7 +307,9 @@ export default function AgentClientsPage() {
               >
                 <ArrowRight size={24} />
               </button>
-              <h1 className="text-2xl font-bold text-primary">ניהול לקוחות</h1>
+              <h1 className="text-2xl font-bold text-primary">
+                {agentId && agentName ? `לקוחות של ${agentName}` : 'ניהול לקוחות'}
+              </h1>
             </div>
 
             <div className="flex gap-3">

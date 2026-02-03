@@ -4,6 +4,96 @@ import { auth } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
+// GET - Get recent files
+export async function GET(request: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const all = searchParams.get('all') === 'true'
+
+    // For ADMIN - get all files from the system
+    if (session.user.role === 'ADMIN' && all) {
+      const files = await prisma.file.findMany({
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          folder: {
+            select: {
+              name: true,
+              category: true,
+              user: {
+                select: {
+                  name: true,
+                  role: true,
+                }
+              }
+            }
+          }
+        }
+      })
+      return NextResponse.json(files)
+    }
+
+    // For AGENT - get files from their clients' folders
+    if (session.user.role === 'AGENT') {
+      const files = await prisma.file.findMany({
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        where: {
+          folder: {
+            user: {
+              agentId: session.user.id
+            }
+          }
+        },
+        include: {
+          folder: {
+            select: {
+              name: true,
+              category: true,
+              user: {
+                select: {
+                  name: true,
+                  role: true,
+                }
+              }
+            }
+          }
+        }
+      })
+      return NextResponse.json(files)
+    }
+
+    // For CLIENT - get their own files
+    const files = await prisma.file.findMany({
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      where: {
+        folder: {
+          userId: session.user.id
+        }
+      },
+      include: {
+        folder: {
+          select: {
+            name: true,
+            category: true,
+          }
+        }
+      }
+    })
+    return NextResponse.json(files)
+  } catch (error) {
+    console.error('Error fetching files:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // POST - Upload file
 export async function POST(request: NextRequest) {
   try {

@@ -34,6 +34,7 @@ model User {
   name      String
   phone     String?
   idNumber  String?  @unique
+  logoUrl   String?  // Agent logo URL
 
   // Agent relationship - clients belong to agents
   agentId   String?
@@ -116,5 +117,42 @@ model Log {
   createdAt  DateTime   @default(now())
 
   @@index([errorLevel])
+  @@index([createdAt])
+}
+
+enum ActivityType {
+  USER_REGISTERED
+  USER_UPDATED
+  USER_DELETED
+  FILE_UPLOADED
+  FILE_DELETED
+  FOLDER_CREATED
+  FOLDER_DELETED
+  LOGIN
+  LOGOUT
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  description String
+
+  // Who performed the action
+  userId      String?
+  userName    String?
+  userRole    String?
+
+  // Target of the action (if applicable)
+  targetId    String?
+  targetName  String?
+  targetType  String?      // USER, FILE, FOLDER
+
+  // Additional metadata (JSON string)
+  metadata    String?
+
+  createdAt   DateTime     @default(now())
+
+  @@index([type])
+  @@index([userId])
   @@index([createdAt])
 }

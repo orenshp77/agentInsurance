@@ -21,6 +21,7 @@
     "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-image-crop": "^11.0.10",
     "sweetalert2": "^11.26.17"
   },
   "devDependencies": {

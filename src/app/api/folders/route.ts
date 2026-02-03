@@ -13,12 +13,22 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
     const category = searchParams.get('category')
+    const agentId = searchParams.get('agentId')
 
     let whereClause: Record<string, unknown> = {}
 
     if (session.user.role === 'ADMIN') {
       // Admin can see all folders
-      if (userId) whereClause.userId = userId
+      if (userId) {
+        whereClause.userId = userId
+      } else if (agentId) {
+        // Get folders for a specific agent's clients
+        const clientIds = await prisma.user.findMany({
+          where: { agentId: agentId },
+          select: { id: true },
+        })
+        whereClause.userId = { in: clientIds.map((c) => c.id) }
+      }
     } else if (session.user.role === 'AGENT') {
       // Agent can see their clients' folders
       if (userId) {

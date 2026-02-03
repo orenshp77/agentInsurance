@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Lock, Mail, ArrowLeft, Sparkles, RefreshCw, Mountain } from 'lucide-react'
+import { Lock, Mail, ArrowLeft, RefreshCw, Mountain } from 'lucide-react'
 import { showError } from '@/lib/swal'
 
 // Real landscape images from Unsplash
@@ -114,7 +114,7 @@ export default function LoginPage() {
   const landscape = landscapes[currentBg]
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center p-4 pb-[20%] relative overflow-hidden">
       {/* Dynamic Background Image */}
       <div
         className={`absolute inset-0 transition-opacity duration-700 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
@@ -169,65 +169,42 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Background Dots Indicator */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-        {landscapes.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => {
-              setIsTransitioning(true)
-              setTimeout(() => {
-                setCurrentBg(index)
-                setIsTransitioning(false)
-              }, 500)
-            }}
-            className={`w-2 h-2 rounded-full transition-all ${
-              index === currentBg
-                ? 'bg-white w-6'
-                : 'bg-white/40 hover:bg-white/60'
-            }`}
-          />
-        ))}
-      </div>
 
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-[90%] sm:max-w-md md:max-w-lg relative z-10 mx-auto flex flex-col items-center justify-center">
         {/* Logo / Title */}
-        <div className="text-center mb-8 animate-fade-in-up">
+        <div className="text-center mb-4 sm:mb-6 animate-fade-in-up">
           {/* Logo */}
-          <div className="relative inline-block mb-6">
-            <div className="w-36 h-36 mx-auto relative">
+          <div className="relative inline-block mb-0">
+            <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 mx-auto relative">
               <img
                 src="/uploads/logo-finance.png"
                 alt="מגן פיננסי"
-                className="w-full h-full object-contain drop-shadow-2xl"
+                className="w-full h-full object-contain"
+                style={{ filter: 'drop-shadow(0px 0px 1px #fff)' }}
               />
-              {/* Subtle glow behind logo */}
-              <div className="absolute inset-0 bg-white/5 rounded-full blur-3xl -z-10" />
             </div>
           </div>
 
-          <h1 className="text-4xl font-bold mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 -mt-2">
             <span className="text-white drop-shadow-lg">מגן פיננסי</span>
           </h1>
-          <p className="text-white/70 flex items-center justify-center gap-2">
-            <Sparkles size={16} className="text-gold" />
+          <p className="text-white/70 text-xs sm:text-sm">
             ניהול תיק חכם
-            <Sparkles size={16} className="text-gold" />
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="glass-strong rounded-3xl p-8 animate-fade-in-up backdrop-blur-xl border border-white/10" style={{ animationDelay: '0.2s' }}>
-          <div className="flex items-center justify-center gap-2 mb-6">
+        <div className="w-full glass-strong rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-10 animate-fade-in-up backdrop-blur-xl border border-white/10" style={{ animationDelay: '0.2s' }}>
+          <div className="flex items-center justify-center gap-2 mb-4 sm:mb-6">
             <div className="h-px flex-1 bg-gradient-to-r from-transparent to-white/20" />
-            <h2 className="text-xl font-bold text-white">התחברות</h2>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-white">התחברות</h2>
             <div className="h-px flex-1 bg-gradient-to-l from-transparent to-white/20" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
             {/* Email Field */}
             <div className="animate-slide-in-right opacity-0" style={{ animationDelay: '0.3s', animationFillMode: 'forwards' }}>
-              <label htmlFor="email" className="block text-sm font-medium mb-2 text-white/70">
+              <label htmlFor="email" className="block text-sm sm:text-base font-medium mb-2 text-white/70">
                 אימייל
               </label>
               <div className="relative group">
@@ -236,20 +213,20 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-primary focus:bg-white/15 transition-all"
+                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-primary focus:bg-white/15 transition-all text-sm sm:text-base"
                   placeholder="your@email.com"
                   required
                   dir="ltr"
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-primary/20 group-focus-within:bg-primary/30 transition-all">
-                  <Mail size={16} className="text-primary" />
+                  <Mail size={18} className="text-primary" />
                 </div>
               </div>
             </div>
 
             {/* Password Field */}
             <div className="animate-slide-in-right opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
-              <label htmlFor="password" className="block text-sm font-medium mb-2 text-white/70">
+              <label htmlFor="password" className="block text-sm sm:text-base font-medium mb-2 text-white/70">
                 סיסמה
               </label>
               <div className="relative group">
@@ -258,13 +235,13 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-secondary focus:bg-white/15 transition-all"
+                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-secondary focus:bg-white/15 transition-all text-sm sm:text-base"
                   placeholder="••••••••"
                   required
                   dir="ltr"
                 />
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 rounded-lg bg-secondary/20 group-focus-within:bg-secondary/30 transition-all">
-                  <Lock size={16} className="text-secondary" />
+                  <Lock size={18} className="text-secondary" />
                 </div>
               </div>
             </div>
@@ -273,7 +250,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 text-lg rounded-xl bg-gradient-to-r from-primary to-accent text-white font-bold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group animate-fade-in-up opacity-0"
+              className="w-full py-3 sm:py-4 md:py-5 text-base sm:text-lg md:text-xl rounded-xl bg-gradient-to-r from-primary to-accent text-white font-bold shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group animate-fade-in-up opacity-0"
               style={{ animationDelay: '0.5s', animationFillMode: 'forwards' }}
             >
               {loading ? (
@@ -284,6 +261,17 @@ export default function LoginPage() {
                   <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
                 </>
               )}
+            </button>
+
+            {/* Agent Registration Button */}
+            <button
+              type="button"
+              onClick={() => router.push('/register-agent')}
+              className="w-full py-3 sm:py-4 text-sm sm:text-base rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group animate-fade-in-up opacity-0"
+              style={{ animationDelay: '0.6s', animationFillMode: 'forwards' }}
+            >
+              <span>הרשמה כסוכן ביטוח</span>
+              <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
             </button>
           </form>
         </div>

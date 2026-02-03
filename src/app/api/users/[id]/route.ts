@@ -26,6 +26,7 @@ export async function GET(
         role: true,
         idNumber: true,
         agentId: true,
+        logoUrl: true,
         createdAt: true,
         folders: {
           select: {
@@ -46,13 +47,17 @@ export async function GET(
     if (session.user.role === 'ADMIN') {
       // Admin can see any user
     } else if (session.user.role === 'AGENT') {
-      // Agent can only see their clients
+      // Agent can only see their clients or themselves
       if (user.agentId !== session.user.id && user.id !== session.user.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     } else {
-      // Client can only see themselves
-      if (user.id !== session.user.id) {
+      // Client can see themselves or their agent
+      const client = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { agentId: true },
+      })
+      if (user.id !== session.user.id && user.id !== client?.agentId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }

@@ -8,11 +8,12 @@ import {
   ChevronLeft, Clock, Eye, Sparkles, TrendingUp,
   Home, User, Circle, LayoutGrid, X, MessageCircle,
   Mail, Phone, BarChart3, Activity, CheckCircle, Calendar,
-  Menu, LogOut, List, PhoneCall, Bell
+  Menu, LogOut, List, PhoneCall, Bell, Cloud
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
 import { showError } from '@/lib/swal'
+import BarChart from '@/components/ui/BarChart'
 
 interface Folder {
   id: string
@@ -94,6 +95,8 @@ export default function ClientFoldersPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [currentBgIndex, setCurrentBgIndex] = useState(0)
+  const [showBackground, setShowBackground] = useState(true)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   // Mock notifications data
   const notifications = [
@@ -102,22 +105,34 @@ export default function ClientFoldersPage() {
     { id: 3, title: 'עדכון מהסוכן', description: 'הפוליסה שלך חודשה בהצלחה', time: 'לפני 3 ימים', isNew: false },
   ]
 
-  // Background landscape images
-  const landscapeImages = [
-    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80', // Mountains
-    'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1920&q=80', // Forest
-    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1920&q=80', // Nature
-    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1920&q=80', // Lake
-    'https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=1920&q=80', // Waterfall
+  // Background landscape images with names
+  const landscapes = [
+    { name: 'הרים בשלג', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920&q=80' },
+    { name: 'שקיעה בהרים', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80' },
+    { name: 'אורורה בוראלית', image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1920&q=80' },
+    { name: 'לילה כוכבי', image: 'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=1920&q=80' },
+    { name: 'יער בערפל', image: 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=1920&q=80' },
+    { name: 'אגם בהרים', image: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=1920&q=80' },
+    { name: 'מפל מים', image: 'https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=1920&q=80' },
+    { name: 'חוף ושקיעה', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80' },
   ]
+
+  const changeBackground = () => {
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setCurrentBgIndex((prev) => (prev + 1) % landscapes.length)
+      setIsTransitioning(false)
+    }, 500)
+  }
 
   // Rotate background images
   useEffect(() => {
+    if (!showBackground) return
     const interval = setInterval(() => {
-      setCurrentBgIndex((prev) => (prev + 1) % landscapeImages.length)
-    }, 8000)
+      changeBackground()
+    }, 15000)
     return () => clearInterval(interval)
-  }, [])
+  }, [showBackground, currentBgIndex])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -201,7 +216,37 @@ export default function ClientFoldersPage() {
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-32">
+      <div className="min-h-screen pb-32 relative">
+        {/* Full Screen Dynamic Background */}
+        {showBackground && (
+          <div className="fixed inset-0 z-0">
+            <div className={`absolute inset-0 transition-opacity duration-700 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+              <img
+                src={landscapes[currentBgIndex].image}
+                alt={landscapes[currentBgIndex].name}
+                className="w-full h-full object-cover"
+              />
+              {/* Dark overlay */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-[#0d1117]/80 to-[#0d1117]" />
+            </div>
+          </div>
+        )}
+
+        {/* Background Controls */}
+        <div className="fixed top-20 left-4 z-40">
+          <button
+            onClick={() => setShowBackground(!showBackground)}
+            className={`p-2.5 rounded-full transition-all ${
+              showBackground
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'bg-purple-600/60 hover:bg-purple-600'
+            }`}
+            title={showBackground ? 'הסתר רקע' : 'הצג רקע'}
+          >
+            <Cloud size={18} className="text-white" />
+          </button>
+        </div>
+
         {/* Fixed Header with Logo and Hamburger */}
         <header className="fixed top-0 left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5">
           <div className="max-w-7xl mx-auto px-4 py-3">
@@ -385,23 +430,8 @@ export default function ClientFoldersPage() {
 
         {/* Hero Section - with top padding for fixed header */}
         <div className="relative overflow-hidden pt-16">
-          {/* Landscape Background with Transition */}
-          <div className="absolute inset-0">
-            {landscapeImages.map((img, index) => (
-              <div
-                key={index}
-                className="absolute inset-0 transition-opacity duration-[2000ms]"
-                style={{
-                  backgroundImage: `url(${img})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  opacity: index === currentBgIndex ? 0.15 : 0,
-                }}
-              />
-            ))}
-            {/* Dark overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/80 via-[#0d1117]/90 to-[#0d1117]" />
-            {/* Glow effects */}
+          {/* Glow effects */}
+          <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4" />
             <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
           </div>
@@ -410,9 +440,7 @@ export default function ClientFoldersPage() {
             {/* Welcome Section */}
             <div className="text-center mb-10 animate-fade-in-up">
               <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-white/10 mb-6 backdrop-blur-sm">
-                <Sparkles size={18} className="text-gold animate-pulse" />
                 <span className="text-sm font-medium">האזור האישי שלך</span>
-                <Sparkles size={18} className="text-gold animate-pulse" />
               </div>
 
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
@@ -472,6 +500,22 @@ export default function ClientFoldersPage() {
                   <div className="text-sm text-foreground-muted">ערך מצטבר</div>
                 </div>
               </div>
+            </div>
+
+            {/* Statistics Chart */}
+            <div className="mt-8 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+              <BarChart
+                title="סטטיסטיקה חודשית"
+                subtitle="פעילות מסמכים ותיקיות"
+                data={[
+                  { label: 'אוג', value1: 15, value2: 12 },
+                  { label: 'ספט', value1: 22, value2: 18 },
+                  { label: 'אוק', value1: 18, value2: 25 },
+                  { label: 'נוב', value1: 30, value2: 20 },
+                  { label: 'דצמ', value1: totalFiles || 25, value2: 15 },
+                  { label: 'ינו', value1: 20, value2: 28 },
+                ]}
+              />
             </div>
           </div>
         </div>
@@ -820,6 +864,7 @@ export default function ClientFoldersPage() {
             onClick={closeAllModals}
           />
         )}
+
       </div>
 
       <style jsx>{`

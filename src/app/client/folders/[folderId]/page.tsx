@@ -5,10 +5,11 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRight, FileText, Image, File, Download, Mail, MessageCircle,
-  Eye, Shield, Wallet, Car, Clock, Files, Phone, Sparkles, ChevronLeft
+  Eye, Shield, Wallet, Car, Clock, Files, Phone, Sparkles, ChevronLeft,
+  Menu, Bell, LogOut, Home, FolderOpen, Settings, PhoneCall
 } from 'lucide-react'
+import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
-import MobileNav from '@/components/layout/MobileNav'
 import { showError } from '@/lib/swal'
 
 interface FileItem {
@@ -103,6 +104,8 @@ export default function ClientFolderFilesPage({
   const router = useRouter()
   const [folder, setFolder] = useState<Folder | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -179,10 +182,152 @@ export default function ClientFolderFilesPage({
   const CategoryIcon = config.icon
 
   return (
-    <AppLayout>
+    <AppLayout showHeader={false} showFooter={false}>
       <div className="min-h-screen pb-24 md:pb-8">
+        {/* Fixed Header with Hamburger Menu */}
+        <header className="fixed top-0 left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/client/folders')}>
+                <div className="w-12 h-12">
+                  <img
+                    src="/uploads/logo-finance.png"
+                    alt="מגן פיננסי"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="hidden sm:block">
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                    מגן פיננסי
+                  </h1>
+                  <p className="text-xs text-foreground-muted">ניהול תיק חכם</p>
+                </div>
+              </div>
+
+              {/* Right Side Controls */}
+              <div className="flex items-center gap-3">
+                {/* Notifications Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(!showNotifications)
+                      setShowMenu(false)
+                    }}
+                    className="relative p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                  >
+                    <Bell size={20} className="text-foreground-muted" />
+                  </button>
+
+                  {showNotifications && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                      <div className="absolute left-0 top-full mt-2 w-80 bg-[#0d1117] border-2 border-[#30363d] rounded-2xl p-4 z-50 shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-bold text-lg flex items-center gap-2">
+                            <Bell size={18} className="text-primary" />
+                            התראות
+                          </h3>
+                        </div>
+                        <div className="p-4 text-center text-foreground-muted">
+                          אין התראות חדשות
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Hamburger Menu Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowMenu(!showMenu)
+                      setShowNotifications(false)
+                    }}
+                    className="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-white font-bold">
+                      {session?.user?.name?.charAt(0)}
+                    </div>
+                    <Menu size={20} className="text-foreground-muted" />
+                  </button>
+
+                  {showMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                      <div className="absolute left-0 top-full mt-2 w-72 bg-[#0d1117] border-2 border-[#30363d] rounded-2xl p-4 z-50 shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
+                        {/* User Info */}
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 mb-3">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-accent to-secondary flex items-center justify-center text-white font-bold text-lg">
+                            {session?.user?.name?.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-bold">{session?.user?.name}</p>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-accent to-secondary text-white">
+                              לקוח
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Menu Items */}
+                        <button
+                          onClick={() => {
+                            router.push('/dashboard')
+                            setShowMenu(false)
+                          }}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-all text-right"
+                        >
+                          <div className="p-2 rounded-lg bg-primary/20">
+                            <Home size={18} className="text-primary" />
+                          </div>
+                          <span>דשבורד</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            router.push('/client/folders')
+                            setShowMenu(false)
+                          }}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-all text-right"
+                        >
+                          <div className="p-2 rounded-lg bg-accent/20">
+                            <FolderOpen size={18} className="text-accent" />
+                          </div>
+                          <span>התיקיות שלי</span>
+                        </button>
+
+                        <button
+                          onClick={() => window.open('https://wa.me/', '_blank')}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-all text-right"
+                        >
+                          <div className="p-2 rounded-lg bg-green-500/20">
+                            <PhoneCall size={18} className="text-green-400" />
+                          </div>
+                          <span>יצירת קשר עם הסוכן</span>
+                        </button>
+
+                        <div className="my-2 h-px bg-white/10" />
+
+                        <button
+                          onClick={() => signOut({ callbackUrl: '/login' })}
+                          className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-error/10 transition-all text-right text-error"
+                        >
+                          <div className="p-2 rounded-lg bg-error/20">
+                            <LogOut size={18} />
+                          </div>
+                          <span>התנתק</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
         {/* Hero Header */}
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-hidden pt-16">
           {/* Background */}
           <div className={`absolute inset-0 bg-gradient-to-br ${config.bgGradient}`} />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
@@ -364,8 +509,6 @@ export default function ClientFolderFilesPage({
             </div>
           )}
         </main>
-
-        <MobileNav />
       </div>
     </AppLayout>
   )
