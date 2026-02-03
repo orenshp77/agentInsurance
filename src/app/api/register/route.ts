@@ -58,6 +58,22 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Log the registration activity
+    const userRole = role || 'CLIENT'
+    const roleLabel = userRole === 'AGENT' ? 'סוכן' : userRole === 'ADMIN' ? 'מנהל' : 'לקוח'
+    await prisma.activity.create({
+      data: {
+        type: 'USER_REGISTERED',
+        description: `${roleLabel} חדש נרשם למערכת: ${name}`,
+        userId: user.id,
+        userName: name,
+        userRole: userRole,
+        targetId: user.id,
+        targetName: name,
+        targetType: 'USER',
+      },
+    })
+
     return NextResponse.json({
       id: user.id,
       name: user.name,
@@ -66,8 +82,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Registration error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'שגיאה ביצירת המשתמש' },
+      { error: `שגיאה ביצירת המשתמש: ${errorMessage}` },
       { status: 500 }
     )
   }

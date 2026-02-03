@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   FileText, Shield, Wallet, Car, FolderOpen, Files,
   ChevronLeft, Clock, Eye, Sparkles, TrendingUp,
   Home, User, Circle, LayoutGrid, X, MessageCircle,
   Mail, Phone, BarChart3, Activity, CheckCircle, Calendar,
-  Menu, LogOut, List, PhoneCall, Bell, Cloud
+  Menu, LogOut, List, PhoneCall, Bell, Cloud, ArrowRight
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
@@ -83,6 +84,9 @@ const monthlyActivity = [
 export default function ClientFoldersPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsClientId = searchParams.get('viewAs')
+  const [viewAsClientName, setViewAsClientName] = useState<string>('')
   const [folders, setFolders] = useState<Folder[]>([])
   const [allFiles, setAllFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,6 +101,8 @@ export default function ClientFoldersPage() {
   const [currentBgIndex, setCurrentBgIndex] = useState(0)
   const [showBackground, setShowBackground] = useState(true)
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [agentInfo, setAgentInfo] = useState<{ name: string; logoUrl?: string } | null>(null)
+  const [logoColors, setLogoColors] = useState<string[]>(['#8b5cf6', '#06b6d4', '#ec4899'])
 
   // Mock notifications data
   const notifications = [
@@ -140,16 +146,129 @@ export default function ClientFoldersPage() {
     }
   }, [status, router])
 
+  // Fetch client name when viewing as agent
+  useEffect(() => {
+    if (viewAsClientId && session?.user?.role === 'AGENT') {
+      fetchClientName()
+    }
+  }, [viewAsClientId, session])
+
+  // Fetch agent info for client
+  useEffect(() => {
+    if (session?.user?.role === 'CLIENT' && session?.user?.agentId) {
+      fetchAgentInfo(session.user.agentId)
+    }
+  }, [session])
+
+  const fetchAgentInfo = async (agentId: string) => {
+    try {
+      const res = await fetch(`/api/users/${agentId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAgentInfo({ name: data.name, logoUrl: data.logoUrl })
+        // Extract colors from logo
+        if (data.logoUrl) {
+          extractColorsFromImage(data.logoUrl)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching agent info:', error)
+    }
+  }
+
+  // Extract dominant colors from logo image
+  const extractColorsFromImage = (imageUrl: string) => {
+    const img = new Image()
+    img.crossOrigin = 'Anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      // Sample size for performance
+      const sampleSize = 50
+      canvas.width = sampleSize
+      canvas.height = sampleSize
+      ctx.drawImage(img, 0, 0, sampleSize, sampleSize)
+
+      const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize)
+      const pixels = imageData.data
+      const colorCounts: Record<string, { count: number; r: number; g: number; b: number }> = {}
+
+      // Analyze pixels
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i]
+        const g = pixels[i + 1]
+        const b = pixels[i + 2]
+        const a = pixels[i + 3]
+
+        // Skip transparent and very dark/light pixels
+        if (a < 128) continue
+        const brightness = (r + g + b) / 3
+        if (brightness < 30 || brightness > 240) continue
+
+        // Quantize colors for grouping
+        const qr = Math.round(r / 32) * 32
+        const qg = Math.round(g / 32) * 32
+        const qb = Math.round(b / 32) * 32
+        const key = `${qr},${qg},${qb}`
+
+        if (!colorCounts[key]) {
+          colorCounts[key] = { count: 0, r: qr, g: qg, b: qb }
+        }
+        colorCounts[key].count++
+      }
+
+      // Sort by frequency and get top 3 vibrant colors
+      const sortedColors = Object.values(colorCounts)
+        .filter(c => {
+          // Filter for more vibrant colors
+          const max = Math.max(c.r, c.g, c.b)
+          const min = Math.min(c.r, c.g, c.b)
+          return (max - min) > 40 // Has some saturation
+        })
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3)
+
+      if (sortedColors.length >= 2) {
+        const newColors = sortedColors.map(c =>
+          `rgb(${c.r}, ${c.g}, ${c.b})`
+        )
+        // Fill to 3 colors if needed
+        while (newColors.length < 3) {
+          newColors.push(newColors[0])
+        }
+        setLogoColors(newColors)
+      }
+    }
+    img.src = imageUrl
+  }
+
+  const fetchClientName = async () => {
+    try {
+      const res = await fetch(`/api/users/${viewAsClientId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setViewAsClientName(data.name)
+      }
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   useEffect(() => {
     if (session?.user) {
       fetchFolders()
       fetchAllFiles()
     }
-  }, [session])
+  }, [session, viewAsClientId])
 
   const fetchFolders = async () => {
     try {
-      const res = await fetch('/api/folders')
+      const url = viewAsClientId
+        ? `/api/folders?userId=${viewAsClientId}`
+        : '/api/folders'
+      const res = await fetch(url)
       const data = await res.json()
       setFolders(data)
     } catch (error) {
@@ -162,7 +281,10 @@ export default function ClientFoldersPage() {
 
   const fetchAllFiles = async () => {
     try {
-      const res = await fetch('/api/files/all')
+      const url = viewAsClientId
+        ? `/api/files?userId=${viewAsClientId}`
+        : '/api/files'
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setAllFiles(data)
@@ -247,8 +369,27 @@ export default function ClientFoldersPage() {
           </button>
         </div>
 
+        {/* Agent Viewing Mode Banner */}
+        {viewAsClientId && session?.user?.role === 'AGENT' && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-2 px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-2 text-black font-medium">
+                <Eye size={18} />
+                <span>מצב תצוגה כלקוח {viewAsClientName ? `- ${viewAsClientName}` : ''}</span>
+              </div>
+              <button
+                onClick={() => router.push('/agent/clients')}
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-black/20 hover:bg-black/30 text-black font-medium transition-all"
+              >
+                <ArrowRight size={16} />
+                <span>חזור לניהול</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Fixed Header with Logo and Hamburger */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5">
+        <header className={`fixed left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5 ${viewAsClientId && session?.user?.role === 'AGENT' ? 'top-10' : 'top-0'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -429,7 +570,7 @@ export default function ClientFoldersPage() {
         </header>
 
         {/* Hero Section - with top padding for fixed header */}
-        <div className="relative overflow-hidden pt-16">
+        <div className={`relative overflow-hidden ${viewAsClientId && session?.user?.role === 'AGENT' ? 'pt-24' : 'pt-16'}`}>
           {/* Glow effects */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4" />
@@ -439,9 +580,84 @@ export default function ClientFoldersPage() {
           <div className="relative max-w-7xl mx-auto px-4 py-10 md:py-16">
             {/* Welcome Section */}
             <div className="text-center mb-10 animate-fade-in-up">
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-white/10 mb-6 backdrop-blur-sm">
-                <span className="text-sm font-medium">האזור האישי שלך</span>
-              </div>
+              {agentInfo?.logoUrl ? (
+                <div className="mb-8 flex justify-center">
+                  <div className="relative group">
+                    {/* Animated glow background - uses extracted colors */}
+                    <div
+                      className="absolute -inset-6 rounded-3xl opacity-40 blur-3xl group-hover:opacity-60 transition-all duration-700 animate-pulse-slow"
+                      style={{
+                        background: `linear-gradient(135deg, ${logoColors[0]}, ${logoColors[1]}, ${logoColors[2]})`
+                      }}
+                    />
+                    <div
+                      className="absolute -inset-3 rounded-2xl opacity-30 blur-xl"
+                      style={{
+                        background: `linear-gradient(45deg, ${logoColors[0]}80, ${logoColors[1]}80)`
+                      }}
+                    />
+
+                    {/* Logo container with glass effect */}
+                    <div
+                      className="relative p-5 md:p-7 rounded-2xl backdrop-blur-md shadow-2xl"
+                      style={{
+                        background: `linear-gradient(135deg, ${logoColors[0]}15, ${logoColors[1]}10, transparent)`,
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        borderImage: `linear-gradient(135deg, ${logoColors[0]}40, ${logoColors[1]}30, ${logoColors[2]}20) 1`
+                      }}
+                    >
+                      {/* Inner glow with logo colors */}
+                      <div
+                        className="absolute inset-0 rounded-2xl opacity-20"
+                        style={{
+                          background: `radial-gradient(ellipse at center, ${logoColors[0]}30, transparent 70%)`
+                        }}
+                      />
+
+                      {/* The logo */}
+                      <img
+                        src={agentInfo.logoUrl}
+                        alt={agentInfo.name || 'סוכן'}
+                        className="relative h-24 md:h-32 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                        style={{
+                          filter: `drop-shadow(0 0 30px ${logoColors[0]}50)`
+                        }}
+                      />
+                    </div>
+
+                    {/* Shine effect overlay */}
+                    <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                      <div
+                        className="absolute -inset-full skew-x-12 animate-shimmer"
+                        style={{
+                          background: `linear-gradient(90deg, transparent, ${logoColors[0]}20, transparent)`
+                        }}
+                      />
+                    </div>
+
+                    {/* Floating particles effect */}
+                    <div className="absolute -inset-8 pointer-events-none overflow-hidden rounded-3xl">
+                      <div
+                        className="absolute w-2 h-2 rounded-full animate-float-1"
+                        style={{ background: logoColors[0], top: '20%', left: '10%' }}
+                      />
+                      <div
+                        className="absolute w-1.5 h-1.5 rounded-full animate-float-2"
+                        style={{ background: logoColors[1], top: '60%', right: '15%' }}
+                      />
+                      <div
+                        className="absolute w-1 h-1 rounded-full animate-float-3"
+                        style={{ background: logoColors[2], bottom: '30%', left: '20%' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-white/10 mb-6 backdrop-blur-sm">
+                  <span className="text-sm font-medium">האזור האישי שלך</span>
+                </div>
+              )}
 
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
                 שלום, <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">{session?.user?.name}</span>
@@ -619,87 +835,20 @@ export default function ClientFoldersPage() {
           </main>
         )}
 
-        {/* ==================== FLOATING ACTION BAR ==================== */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="relative">
-            {/* Main Bar */}
-            <div className="flex items-center gap-2 px-4 py-3 rounded-[32px] bg-[#0d1117] border-2 border-[#30363d] shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
-              {/* Home Button */}
-              <button
-                onClick={() => {
-                  closeAllModals()
-                  setActiveView('home')
-                }}
-                className={`relative p-4 rounded-2xl transition-all duration-300 ${
-                  activeView === 'home'
-                    ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
-                    : 'bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                <Home size={22} className={activeView === 'home' ? 'text-black' : 'text-white'} />
-              </button>
 
-              {/* Contact Button */}
-              <button
-                onClick={() => {
-                  setShowContact(!showContact)
-                  setShowDocuments(false)
-                  setShowStats(false)
-                }}
-                className={`relative p-4 rounded-2xl transition-all duration-300 ${
-                  showContact
-                    ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
-                    : 'bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                <User size={22} className={showContact ? 'text-black' : 'text-white'} />
-              </button>
-
-              {/* Center Circle - Documents */}
-              <button
-                onClick={() => {
-                  setShowDocuments(!showDocuments)
-                  setShowContact(false)
-                  setShowStats(false)
-                }}
-                className={`relative p-5 rounded-full transition-all duration-300 mx-2 ${
-                  showDocuments
-                    ? 'bg-white shadow-lg shadow-white/30 scale-110'
-                    : 'bg-gradient-to-br from-white/20 to-white/10 border-2 border-white/30 hover:bg-white/20 hover:scale-105'
-                }`}
-              >
-                <Circle size={24} className={showDocuments ? 'text-black' : 'text-white'} fill={showDocuments ? 'black' : 'none'} />
-              </button>
-
-              {/* Stats Button */}
-              <button
-                onClick={() => {
-                  setShowStats(!showStats)
-                  setShowDocuments(false)
-                  setShowContact(false)
-                }}
-                className={`relative p-4 rounded-2xl transition-all duration-300 ${
-                  showStats
-                    ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
-                    : 'bg-white/10 hover:bg-white/20'
-                }`}
-              >
-                <LayoutGrid size={22} className={showStats ? 'text-black' : 'text-white'} />
-              </button>
-
-              {/* Placeholder for balance */}
-              <div className="px-4 py-2 rounded-xl bg-white/5">
-                <span className="text-xs text-foreground-muted">₪{(monthlyActivity.reduce((a, b) => a + b.value, 0)).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Contact Popup */}
-            {showContact && (
-              <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-72 animate-scale-in">
+        {/* Contact Modal - Using Portal */}
+        {typeof window !== 'undefined' && showContact && createPortal(
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+            <div
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+              onClick={() => setShowContact(false)}
+            />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%', maxWidth: '24rem', padding: '1rem', zIndex: 10000 }}>
+              <div className="animate-modal-in">
                 <div className="bg-[#0d1117] rounded-3xl p-6 border-2 border-[#30363d] shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-lg">צור קשר עם הסוכן</h3>
-                    <button onClick={() => setShowContact(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                    <h3 className="font-bold text-lg text-white">צור קשר עם הסוכן</h3>
+                    <button onClick={() => setShowContact(false)} className="p-1 hover:bg-white/10 rounded-lg text-white">
                       <X size={18} />
                     </button>
                   </div>
@@ -712,49 +861,58 @@ export default function ClientFoldersPage() {
                         <MessageCircle size={20} className="text-white" />
                       </div>
                       <div className="text-right">
-                        <div className="font-medium">וואטסאפ</div>
-                        <div className="text-xs text-foreground-muted">תגובה מיידית</div>
+                        <div className="font-medium text-white">וואטסאפ</div>
+                        <div className="text-xs text-gray-400">תגובה מיידית</div>
                       </div>
                     </button>
                     <button
                       onClick={() => window.location.href = 'mailto:'}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 border border-primary/30 hover:from-primary/30 hover:to-accent/30 transition-all group"
+                      className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/30 hover:from-purple-500/30 hover:to-cyan-500/30 transition-all group"
                     >
-                      <div className="p-2 rounded-xl bg-primary">
+                      <div className="p-2 rounded-xl bg-purple-500">
                         <Mail size={20} className="text-white" />
                       </div>
                       <div className="text-right">
-                        <div className="font-medium">אימייל</div>
-                        <div className="text-xs text-foreground-muted">שלח הודעה</div>
+                        <div className="font-medium text-white">אימייל</div>
+                        <div className="text-xs text-gray-400">שלח הודעה</div>
                       </div>
                     </button>
                     <button
                       onClick={() => window.location.href = 'tel:'}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-secondary/20 to-tertiary/20 border border-secondary/30 hover:from-secondary/30 hover:to-tertiary/30 transition-all group"
+                      className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-pink-500/20 to-orange-500/20 border border-pink-500/30 hover:from-pink-500/30 hover:to-orange-500/30 transition-all group"
                     >
-                      <div className="p-2 rounded-xl bg-secondary">
+                      <div className="p-2 rounded-xl bg-pink-500">
                         <Phone size={20} className="text-white" />
                       </div>
                       <div className="text-right">
-                        <div className="font-medium">טלפון</div>
-                        <div className="text-xs text-foreground-muted">התקשר עכשיו</div>
+                        <div className="font-medium text-white">טלפון</div>
+                        <div className="text-xs text-gray-400">התקשר עכשיו</div>
                       </div>
                     </button>
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          </div>,
+          document.body
+        )}
 
-            {/* Documents Popup */}
-            {showDocuments && (
-              <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-80 max-h-96 animate-scale-in">
+        {/* Documents Modal - Using Portal */}
+        {typeof window !== 'undefined' && showDocuments && createPortal(
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+            <div
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+              onClick={() => setShowDocuments(false)}
+            />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%', maxWidth: '24rem', padding: '1rem', zIndex: 10000 }}>
+              <div className="animate-modal-in">
                 <div className="bg-[#0d1117] rounded-3xl p-6 border-2 border-[#30363d] shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Files size={20} className="text-primary" />
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-white">
+                      <Files size={20} className="text-purple-400" />
                       כל המסמכים
                     </h3>
-                    <button onClick={() => setShowDocuments(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                    <button onClick={() => setShowDocuments(false)} className="p-1 hover:bg-white/10 rounded-lg text-white">
                       <X size={18} />
                     </button>
                   </div>
@@ -770,15 +928,15 @@ export default function ClientFoldersPage() {
                             <FileText size={16} className="text-white" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">{folder.name} - מסמך {i + 1}</div>
-                            <div className="text-xs text-foreground-muted">{categoryConfig[folder.category].label}</div>
+                            <div className="text-sm font-medium truncate text-white">{folder.name} - מסמך {i + 1}</div>
+                            <div className="text-xs text-gray-400">{categoryConfig[folder.category].label}</div>
                           </div>
-                          <ChevronLeft size={16} className="text-foreground-muted group-hover:text-white group-hover:-translate-x-1 transition-all" />
+                          <ChevronLeft size={16} className="text-gray-400 group-hover:text-white group-hover:-translate-x-1 transition-all" />
                         </div>
                       ))
                     )}
                     {totalFiles === 0 && (
-                      <div className="text-center py-8 text-foreground-muted">
+                      <div className="text-center py-8 text-gray-400">
                         <Files size={32} className="mx-auto mb-2 opacity-50" />
                         <p>אין מסמכים עדיין</p>
                       </div>
@@ -786,18 +944,27 @@ export default function ClientFoldersPage() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          </div>,
+          document.body
+        )}
 
-            {/* Stats Popup */}
-            {showStats && (
-              <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-80 animate-scale-in">
+        {/* Stats Modal - Using Portal */}
+        {typeof window !== 'undefined' && showStats && createPortal(
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+            <div
+              style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+              onClick={() => setShowStats(false)}
+            />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%', maxWidth: '24rem', padding: '1rem', zIndex: 10000 }}>
+              <div className="animate-modal-in">
                 <div className="bg-[#0d1117] rounded-3xl p-6 border-2 border-[#30363d] shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <BarChart3 size={20} className="text-accent" />
+                    <h3 className="font-bold text-lg flex items-center gap-2 text-white">
+                      <BarChart3 size={20} className="text-cyan-400" />
                       פעילות הסוכן
                     </h3>
-                    <button onClick={() => setShowStats(false)} className="p-1 hover:bg-white/10 rounded-lg">
+                    <button onClick={() => setShowStats(false)} className="p-1 hover:bg-white/10 rounded-lg text-white">
                       <X size={18} />
                     </button>
                   </div>
@@ -811,10 +978,10 @@ export default function ClientFoldersPage() {
                         return (
                           <div key={index} className="flex-1 flex flex-col items-center gap-1">
                             <div
-                              className="w-full rounded-t-lg bg-gradient-to-t from-primary to-accent transition-all duration-500"
+                              className="w-full rounded-t-lg bg-gradient-to-t from-purple-500 to-cyan-400 transition-all duration-500"
                               style={{ height: `${height}%` }}
                             />
-                            <span className="text-[10px] text-foreground-muted">{item.month}</span>
+                            <span className="text-[10px] text-gray-400">{item.month}</span>
                           </div>
                         )
                       })}
@@ -824,48 +991,117 @@ export default function ClientFoldersPage() {
                   {/* Stats Summary */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl bg-white/5">
-                      <div className="text-xs text-foreground-muted mb-1">סה"כ פעולות</div>
-                      <div className="text-xl font-bold text-primary">{monthlyActivity.reduce((a, b) => a + b.actions, 0)}</div>
+                      <div className="text-xs text-gray-400 mb-1">סה"כ פעולות</div>
+                      <div className="text-xl font-bold text-purple-400">{monthlyActivity.reduce((a, b) => a + b.actions, 0)}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-white/5">
-                      <div className="text-xs text-foreground-muted mb-1">ערך כלכלי</div>
-                      <div className="text-xl font-bold text-success">₪{(monthlyActivity.reduce((a, b) => a + b.value, 0)).toLocaleString()}</div>
+                      <div className="text-xs text-gray-400 mb-1">ערך כלכלי</div>
+                      <div className="text-xl font-bold text-emerald-400">₪{(monthlyActivity.reduce((a, b) => a + b.value, 0)).toLocaleString()}</div>
                     </div>
                   </div>
 
                   {/* Recent Actions */}
                   <div className="mt-4 pt-4 border-t border-white/10">
-                    <div className="text-xs text-foreground-muted mb-2">פעולות אחרונות</div>
+                    <div className="text-xs text-gray-400 mb-2">פעולות אחרונות</div>
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle size={14} className="text-success" />
+                      <div className="flex items-center gap-2 text-sm text-white">
+                        <CheckCircle size={14} className="text-emerald-400" />
                         <span>חידוש פוליסה - ביטוח רכב</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle size={14} className="text-success" />
+                      <div className="flex items-center gap-2 text-sm text-white">
+                        <CheckCircle size={14} className="text-emerald-400" />
                         <span>הוספת מסמך - פיננסים</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle size={14} className="text-success" />
+                      <div className="flex items-center gap-2 text-sm text-white">
+                        <CheckCircle size={14} className="text-emerald-400" />
                         <span>עדכון תיק - ביטוח בריאות</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Overlay when modals open */}
-        {(showContact || showDocuments || showStats) && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
-            onClick={closeAllModals}
-          />
+            </div>
+          </div>,
+          document.body
         )}
 
       </div>
+
+      {/* ==================== FLOATING ACTION BAR - Using Portal ==================== */}
+      {typeof window !== 'undefined' && createPortal(
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999]">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-[32px] bg-[#0d1117] border-2 border-[#30363d] shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
+            {/* Home Button */}
+            <button
+              onClick={() => {
+                closeAllModals()
+                setActiveView('home')
+              }}
+              className={`relative p-4 rounded-2xl transition-all duration-300 ${
+                activeView === 'home'
+                  ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
+              <Home size={22} className={activeView === 'home' ? 'text-black' : 'text-white'} />
+            </button>
+
+            {/* Contact Button */}
+            <button
+              onClick={() => {
+                setShowContact(!showContact)
+                setShowDocuments(false)
+                setShowStats(false)
+              }}
+              className={`relative p-4 rounded-2xl transition-all duration-300 ${
+                showContact
+                  ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
+              <User size={22} className={showContact ? 'text-black' : 'text-white'} />
+            </button>
+
+            {/* Center Circle - Documents */}
+            <button
+              onClick={() => {
+                setShowDocuments(!showDocuments)
+                setShowContact(false)
+                setShowStats(false)
+              }}
+              className={`relative p-5 rounded-full transition-all duration-300 mx-2 ${
+                showDocuments
+                  ? 'bg-white shadow-lg shadow-white/30 scale-110'
+                  : 'bg-gradient-to-br from-white/20 to-white/10 border-2 border-white/30 hover:bg-white/20 hover:scale-105'
+              }`}
+            >
+              <Circle size={24} className={showDocuments ? 'text-black' : 'text-white'} fill={showDocuments ? 'black' : 'none'} />
+            </button>
+
+            {/* Stats Button */}
+            <button
+              onClick={() => {
+                setShowStats(!showStats)
+                setShowDocuments(false)
+                setShowContact(false)
+              }}
+              className={`relative p-4 rounded-2xl transition-all duration-300 ${
+                showStats
+                  ? 'bg-gradient-to-br from-lime-400 to-lime-500 shadow-lg shadow-lime-500/30'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
+              <LayoutGrid size={22} className={showStats ? 'text-black' : 'text-white'} />
+            </button>
+
+            {/* Balance Display */}
+            <div className="px-4 py-2 rounded-xl bg-white/5">
+              <span className="text-xs text-foreground-muted">₪{(monthlyActivity.reduce((a, b) => a + b.value, 0)).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
@@ -878,18 +1114,83 @@ export default function ClientFoldersPage() {
           background: rgba(255,255,255,0.2);
           border-radius: 2px;
         }
-        @keyframes scale-in {
+        @keyframes modal-in {
           from {
             opacity: 0;
-            transform: translate(-50%, 10px) scale(0.95);
+            transform: scale(0.95) translateY(10px);
           }
           to {
             opacity: 1;
-            transform: translate(-50%, 0) scale(1);
+            transform: scale(1) translateY(0);
           }
         }
-        .animate-scale-in {
-          animation: scale-in 0.2s ease-out forwards;
+        .animate-modal-in {
+          animation: modal-in 0.25s ease-out forwards;
+        }
+        @keyframes pulse-slow {
+          0%, 100% {
+            opacity: 0.3;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.5;
+            transform: scale(1.05);
+          }
+        }
+        .animate-pulse-slow {
+          animation: pulse-slow 3s ease-in-out infinite;
+        }
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%) skewX(-12deg);
+          }
+          100% {
+            transform: translateX(200%) skewX(-12deg);
+          }
+        }
+        .animate-shimmer {
+          animation: shimmer 3s ease-in-out infinite;
+        }
+        @keyframes float-1 {
+          0%, 100% {
+            transform: translateY(0) translateX(0) scale(1);
+            opacity: 0.6;
+          }
+          50% {
+            transform: translateY(-15px) translateX(5px) scale(1.2);
+            opacity: 1;
+          }
+        }
+        @keyframes float-2 {
+          0%, 100% {
+            transform: translateY(0) translateX(0) scale(1);
+            opacity: 0.5;
+          }
+          50% {
+            transform: translateY(-20px) translateX(-8px) scale(1.3);
+            opacity: 0.9;
+          }
+        }
+        @keyframes float-3 {
+          0%, 100% {
+            transform: translateY(0) translateX(0) scale(1);
+            opacity: 0.4;
+          }
+          50% {
+            transform: translateY(-12px) translateX(10px) scale(1.1);
+            opacity: 0.8;
+          }
+        }
+        .animate-float-1 {
+          animation: float-1 4s ease-in-out infinite;
+        }
+        .animate-float-2 {
+          animation: float-2 5s ease-in-out infinite;
+          animation-delay: 1s;
+        }
+        .animate-float-3 {
+          animation: float-3 3.5s ease-in-out infinite;
+          animation-delay: 0.5s;
         }
         @keyframes scale-in-menu {
           from {

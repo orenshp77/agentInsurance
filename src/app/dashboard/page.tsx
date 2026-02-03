@@ -32,6 +32,17 @@ interface RecentFile {
   }
 }
 
+interface Activity {
+  id: string
+  type: string
+  description: string
+  userName?: string
+  userRole?: string
+  targetName?: string
+  targetType?: string
+  createdAt: string
+}
+
 interface AgentInfo {
   id: string
   name: string
@@ -44,6 +55,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [stats, setStats] = useState<Stats>({ users: 0, folders: 0, files: 0 })
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -54,12 +66,17 @@ export default function DashboardPage() {
     if (status === 'unauthenticated') {
       router.push('/login')
     }
-  }, [status, router])
+    // Redirect clients to their folders page
+    if (status === 'authenticated' && session?.user?.role === 'CLIENT') {
+      router.push('/client/folders')
+    }
+  }, [status, session, router])
 
   useEffect(() => {
     if (session?.user) {
       fetchStats()
       fetchRecentFiles()
+      fetchActivities()
       fetchAgentInfo()
     }
   }, [session])
@@ -125,6 +142,18 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error fetching recent files:', error)
+    }
+  }
+
+  const fetchActivities = async () => {
+    try {
+      const res = await fetch('/api/activities?limit=20')
+      if (res.ok) {
+        const data = await res.json()
+        setActivities(data)
+      }
+    } catch (error) {
+      console.error('Error fetching activities:', error)
     }
   }
 
@@ -555,6 +584,44 @@ export default function DashboardPage() {
                   <ArrowUpRight size={28} className="text-foreground-muted group-hover:text-blue-400 transition-colors hidden md:block" />
                 </div>
               </button>
+
+              {/* Upload Files Block */}
+              <div className="mt-4 glass-card p-6 rounded-2xl">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <FileText size={20} className="text-blue-400" />
+                  העלאת טפסים ללקוחות
+                </h3>
+                <p className="text-foreground-muted text-sm mb-4">בחר קטגוריה להעלאת מסמכים</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => router.push('/agent/upload/insurance')}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 hover:from-blue-500/30 hover:to-blue-600/20 transition-all group"
+                  >
+                    <div className="p-3 rounded-xl bg-blue-500">
+                      <FileText size={24} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-blue-400">ביטוח</span>
+                  </button>
+                  <button
+                    onClick={() => router.push('/agent/upload/finance')}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 hover:from-purple-500/30 hover:to-purple-600/20 transition-all group"
+                  >
+                    <div className="p-3 rounded-xl bg-purple-500">
+                      <FileText size={24} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-purple-400">פיננסים</span>
+                  </button>
+                  <button
+                    onClick={() => router.push('/agent/upload/car')}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 hover:from-emerald-500/30 hover:to-emerald-600/20 transition-all group"
+                  >
+                    <div className="p-3 rounded-xl bg-emerald-500">
+                      <FileText size={24} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-emerald-400">רכב</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -565,17 +632,58 @@ export default function DashboardPage() {
                 <span className={`w-1 h-5 rounded-full ${isAdmin ? 'bg-gradient-to-b from-emerald-500 to-green-600' : isAgent ? 'bg-gradient-to-b from-blue-500 to-indigo-600' : 'bg-gradient-to-b from-accent to-secondary'}`} />
                 פעילות אחרונה במערכת
               </h2>
-              <span className="text-xs text-foreground-muted">{recentFiles.length} פעולות</span>
+              <span className="text-xs text-foreground-muted">{activities.length + recentFiles.length} פעולות</span>
             </div>
 
             <div className="glass-card rounded-2xl p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-              {recentFiles.length === 0 ? (
+              {activities.length === 0 && recentFiles.length === 0 ? (
                 <div className="p-8 text-center">
                   <FileText size={40} className="mx-auto text-foreground-subtle mb-3" />
                   <p className="text-foreground-muted">אין פעילות להצגה</p>
                 </div>
               ) : (
                 <div className="space-y-2">
+                  {/* Activities (registrations, etc.) */}
+                  {activities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition-all"
+                    >
+                      <div className={`p-2 rounded-lg ${
+                        activity.type === 'USER_REGISTERED'
+                          ? activity.userRole === 'AGENT'
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'bg-green-500/20 text-green-400'
+                          : activity.type === 'FILE_UPLOADED'
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : 'bg-amber-500/20 text-amber-400'
+                      }`}>
+                        <Users size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm truncate">{activity.description}</h4>
+                        <div className="flex items-center gap-2 text-xs text-foreground-subtle">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            activity.userRole === 'AGENT'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : activity.userRole === 'ADMIN'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-purple-500/20 text-purple-400'
+                          }`}>
+                            {activity.userRole === 'AGENT' ? 'סוכן' : activity.userRole === 'ADMIN' ? 'מנהל' : 'לקוח'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-left flex-shrink-0">
+                        <span className="text-foreground-subtle text-xs flex items-center gap-1">
+                          <Clock size={10} />
+                          {formatTimeAgo(activity.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Recent Files */}
                   {recentFiles.map((file) => (
                     <div
                       key={file.id}

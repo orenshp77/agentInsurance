@@ -138,6 +138,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Log the activity
+    await prisma.activity.create({
+      data: {
+        type: 'FOLDER_CREATED',
+        description: `תיקייה חדשה נוצרה: ${name}`,
+        userId: session.user.id,
+        userName: session.user.name || '',
+        userRole: session.user.role,
+        targetId: folder.id,
+        targetName: name,
+        targetType: 'FOLDER',
+      },
+    })
+
     return NextResponse.json(folder, { status: 201 })
   } catch (error) {
     console.error('Error creating folder:', error)

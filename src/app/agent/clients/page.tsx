@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Pencil, Trash2, ArrowRight, FolderOpen, MessageCircle, Eye, UserPlus, Link2, Copy, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, MessageCircle, Eye, UserPlus, Link2, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
@@ -242,17 +242,7 @@ export default function AgentClientsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              router.push(`/agent/clients/${client.id}/folders`)
-            }}
-            className="p-2 hover:bg-success/10 rounded-lg transition-all"
-            title="תיקיות"
-          >
-            <FolderOpen size={18} className="text-success" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              router.push(`/agent/clients/${client.id}/preview`)
+              router.push(`/client/folders?viewAs=${client.id}`)
             }}
             className="p-2 hover:bg-accent/10 rounded-lg transition-all"
             title="צפה כלקוח"
