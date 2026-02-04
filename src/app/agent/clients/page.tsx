@@ -85,7 +85,7 @@ export default function AgentClientsPage() {
         fetchAgentName()
       }
     }
-  }, [session, agentId])
+  }, [session, agentId, viewAsId])
 
   // Auto-refresh data every 5 seconds
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function AgentClientsPage() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [session, agentId])
+  }, [session, agentId, viewAsId])
 
   const fetchAgentName = async () => {
     try {
@@ -112,8 +112,10 @@ export default function AgentClientsPage() {
 
   const fetchClients = async () => {
     try {
-      const url = agentId
-        ? `/api/users?role=CLIENT&agentId=${agentId}`
+      // Use viewAsId (admin viewing as agent) or agentId parameter
+      const targetAgentId = viewAsId || agentId
+      const url = targetAgentId
+        ? `/api/users?role=CLIENT&agentId=${targetAgentId}`
         : '/api/users?role=CLIENT'
       const res = await fetch(url)
 

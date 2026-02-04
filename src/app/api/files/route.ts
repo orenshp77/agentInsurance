@@ -16,12 +16,22 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const all = searchParams.get('all') === 'true'
     const userId = searchParams.get('userId')
+    const agentId = searchParams.get('agentId')
 
-    // For ADMIN - get all files from the system
+    // For ADMIN - get files (optionally filtered by agentId)
     if (session.user.role === 'ADMIN' && all) {
+      const whereClause = agentId ? {
+        folder: {
+          user: {
+            agentId: agentId
+          }
+        }
+      } : {}
+
       const files = await prisma.file.findMany({
         take: limit,
         orderBy: { createdAt: 'desc' },
+        where: whereClause,
         include: {
           folder: {
             select: {

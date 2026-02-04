@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
+    const agentId = searchParams.get('agentId')
 
     // Only ADMIN can see all activities
     // AGENT sees activities related to their clients
@@ -21,10 +22,11 @@ export async function GET(request: NextRequest) {
 
     if (session.user.role === 'CLIENT') {
       whereClause = { userId: session.user.id }
-    } else if (session.user.role === 'AGENT') {
-      // Get agent's client IDs
+    } else if (session.user.role === 'AGENT' || (session.user.role === 'ADMIN' && agentId)) {
+      // Get agent's client IDs (use agentId param for admin, or session.user.id for agent)
+      const targetAgentId = session.user.role === 'ADMIN' ? agentId : session.user.id
       const clients = await prisma.user.findMany({
-        where: { agentId: session.user.id },
+        where: { agentId: targetAgentId },
         select: { id: true },
       })
       const clientIds = clients.map(c => c.id)
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       // 3. File uploads for their clients (metadata contains clientId)
       whereClause = {
         OR: [
-          { userId: session.user.id },
+          { userId: targetAgentId },
           { userId: { in: clientIds } },
           // Also include activities where metadata contains one of their client IDs
           ...clientIds.map(clientId => ({
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
         ],
       }
     }
-    // ADMIN sees all - no filter
+    // ADMIN without agentId sees all - no filter
 
     const activities = await prisma.activity.findMany({
       where: whereClause,

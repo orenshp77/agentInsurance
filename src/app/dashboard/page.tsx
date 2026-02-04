@@ -180,7 +180,7 @@ export default function DashboardPage() {
       fetchAgentInfo()
       fetchNotifications()
     }
-  }, [session])
+  }, [session, viewAsId, agentId])
 
   // Auto-refresh data every 5 seconds
   useEffect(() => {
@@ -193,12 +193,22 @@ export default function DashboardPage() {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [session])
+  }, [session, viewAsId, agentId])
 
   const fetchAgentInfo = async () => {
     try {
+      // When admin views as agent, get that agent's info
+      const targetAgentId = viewAsId || agentId
+      if (targetAgentId && session?.user?.role === 'ADMIN') {
+        const res = await fetch(`/api/users/${targetAgentId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setAgentInfo(data)
+          setAgentLogo(data.logoUrl)
+        }
+      }
       // For agents - get their own logo
-      if (session?.user?.role === 'AGENT') {
+      else if (session?.user?.role === 'AGENT') {
         const res = await fetch(`/api/users/${session.user.id}`)
         if (res.ok) {
           const data = await res.json()
@@ -222,13 +232,17 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
+      // When admin views as agent, filter by that agent's ID
+      const targetAgentId = viewAsId || agentId
+      const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
+
       if (session?.user?.role !== 'CLIENT') {
-        const usersRes = await fetch('/api/users')
+        const usersRes = await fetch(`/api/users?role=CLIENT${agentParam}`)
         const usersData = await usersRes.json()
         setStats((prev) => ({ ...prev, users: usersData.length || 0 }))
       }
 
-      const foldersRes = await fetch('/api/folders')
+      const foldersRes = await fetch(`/api/folders${targetAgentId ? `?agentId=${targetAgentId}` : ''}`)
       const foldersData = await foldersRes.json()
 
       const totalFiles = foldersData.reduce(
@@ -249,7 +263,9 @@ export default function DashboardPage() {
 
   const fetchRecentFiles = async () => {
     try {
-      const res = await fetch('/api/files?limit=50&all=true')
+      const targetAgentId = viewAsId || agentId
+      const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
+      const res = await fetch(`/api/files?limit=50&all=true${agentParam}`)
       if (res.ok) {
         const data = await res.json()
         setRecentFiles(data)
@@ -261,7 +277,9 @@ export default function DashboardPage() {
 
   const fetchActivities = async () => {
     try {
-      const res = await fetch('/api/activities?limit=20')
+      const targetAgentId = viewAsId || agentId
+      const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
+      const res = await fetch(`/api/activities?limit=20${agentParam}`)
       if (res.ok) {
         const data = await res.json()
         setActivities(data)
