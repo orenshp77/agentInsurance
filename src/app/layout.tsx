@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Assistant } from "next/font/google";
-import { SessionProvider } from "next-auth/react";
+import Providers from "@/components/Providers";
 import "./globals.css";
 
 const assistant = Assistant({
@@ -25,7 +25,7 @@ export default function RootLayout({
         className={`${assistant.variable} font-sans antialiased`}
         style={{ fontFamily: 'var(--font-assistant), sans-serif' }}
       >
-        <SessionProvider>{children}</SessionProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

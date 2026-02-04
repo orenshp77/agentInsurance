@@ -45,9 +45,12 @@ export default function AgentViewPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Wait for session to load before checking role
+    if (status === 'loading') return
+
     if (status === 'unauthenticated') {
       router.push('/login')
-    } else if (session?.user?.role !== 'ADMIN') {
+    } else if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
       router.push('/dashboard')
     }
   }, [status, session, router])

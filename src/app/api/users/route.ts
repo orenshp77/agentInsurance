@@ -37,7 +37,14 @@ export async function GET(request: NextRequest) {
           role: true,
           idNumber: true,
           agentId: true,
+          logoUrl: true,
           createdAt: true,
+          agent: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           _count: {
             select: { clients: true, folders: true },
           },
@@ -85,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, password, name, phone, role, idNumber } = body
+    const { email, password, name, phone, role, idNumber, logoUrl, agentId: requestAgentId } = body
 
     // Validation
     if (!email || !password || !name) {
@@ -125,6 +132,16 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // Determine agentId:
+    // - If agent creates client: use agent's own ID
+    // - If admin creates client with agentId: use provided agentId
+    let finalAgentId: string | undefined = undefined
+    if (session.user.role === 'AGENT') {
+      finalAgentId = session.user.id
+    } else if (session.user.role === 'ADMIN' && requestAgentId && role === 'CLIENT') {
+      finalAgentId = requestAgentId
+    }
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -134,7 +151,8 @@ export async function POST(request: NextRequest) {
         phone,
         role: session.user.role === 'AGENT' ? 'CLIENT' : (role || 'CLIENT'),
         idNumber,
-        agentId: session.user.role === 'AGENT' ? session.user.id : undefined,
+        agentId: finalAgentId,
+        logoUrl: role === 'AGENT' ? logoUrl : undefined,
       },
       select: {
         id: true,

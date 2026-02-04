@@ -28,10 +28,19 @@ export async function GET(request: NextRequest) {
         select: { id: true },
       })
       const clientIds = clients.map(c => c.id)
+
+      // Agent sees:
+      // 1. Their own activities (userId = agent)
+      // 2. Activities by their clients (userId in clientIds)
+      // 3. File uploads for their clients (metadata contains clientId)
       whereClause = {
         OR: [
           { userId: session.user.id },
           { userId: { in: clientIds } },
+          // Also include activities where metadata contains one of their client IDs
+          ...clientIds.map(clientId => ({
+            metadata: { contains: clientId }
+          }))
         ],
       }
     }

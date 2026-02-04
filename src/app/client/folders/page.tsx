@@ -7,12 +7,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   FileText, Shield, Wallet, Car, FolderOpen, Files,
   ChevronLeft, Clock, Eye, Sparkles, TrendingUp,
-  Home, User, Circle, LayoutGrid, X, MessageCircle,
+  Home, User, Copy, LayoutGrid, X, MessageCircle,
   Mail, Phone, BarChart3, Activity, CheckCircle, Calendar,
   Menu, LogOut, List, PhoneCall, Bell, Cloud, ArrowRight
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
+import Swal from 'sweetalert2'
 import { showError } from '@/lib/swal'
 import BarChart from '@/components/ui/BarChart'
 
@@ -36,6 +37,16 @@ interface FileItem {
     name: string
     category: string
   }
+}
+
+interface Notification {
+  id: string
+  title: string
+  description: string
+  type: string
+  isRead: boolean
+  forRole: string
+  createdAt: string
 }
 
 const categoryConfig = {
@@ -101,15 +112,9 @@ export default function ClientFoldersPage() {
   const [currentBgIndex, setCurrentBgIndex] = useState(0)
   const [showBackground, setShowBackground] = useState(true)
   const [isTransitioning, setIsTransitioning] = useState(false)
-  const [agentInfo, setAgentInfo] = useState<{ name: string; logoUrl?: string } | null>(null)
+  const [agentInfo, setAgentInfo] = useState<{ id: string; name: string; logoUrl?: string } | null>(null)
   const [logoColors, setLogoColors] = useState<string[]>(['#8b5cf6', '#06b6d4', '#ec4899'])
-
-  // Mock notifications data
-  const notifications = [
-    { id: 1, title: 'מסמך חדש נוסף', description: 'פוליסת ביטוח רכב עודכנה', time: 'לפני 2 שעות', isNew: true },
-    { id: 2, title: 'תיקייה חדשה', description: 'תיקיית פיננסים נוספה לתיק שלך', time: 'לפני יום', isNew: true },
-    { id: 3, title: 'עדכון מהסוכן', description: 'הפוליסה שלך חודשה בהצלחה', time: 'לפני 3 ימים', isNew: false },
-  ]
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
   // Background landscape images with names
   const landscapes = [
@@ -144,16 +149,27 @@ export default function ClientFoldersPage() {
     if (status === 'unauthenticated') {
       router.push('/login')
     }
-  }, [status, router])
+    // Redirect new clients (profile not completed) to settings page
+    if (status === 'authenticated' && session?.user?.role === 'CLIENT' && !session.user.profileCompleted) {
+      router.push('/settings?welcome=true')
+    }
+  }, [status, router, session])
 
-  // Fetch client name when viewing as agent
+  // Fetch client name and agent logo when viewing as agent or admin
   useEffect(() => {
+    console.log('ViewAs useEffect triggered:', { viewAsClientId, role: session?.user?.role, userId: session?.user?.id })
     if (viewAsClientId && session?.user?.role === 'AGENT') {
+      // Agent viewing their client - fetch client name and agent's own logo
+      console.log('AGENT viewAs detected, fetching agent logo for:', session.user.id)
+      fetchClientName()
+      fetchAgentInfo(session.user.id)
+    } else if (viewAsClientId && session?.user?.role === 'ADMIN') {
+      // Admin viewing a client - fetch client name (will also fetch agent logo)
       fetchClientName()
     }
   }, [viewAsClientId, session])
 
-  // Fetch agent info for client
+  // Fetch agent info for regular client login
   useEffect(() => {
     if (session?.user?.role === 'CLIENT' && session?.user?.agentId) {
       fetchAgentInfo(session.user.agentId)
@@ -162,14 +178,18 @@ export default function ClientFoldersPage() {
 
   const fetchAgentInfo = async (agentId: string) => {
     try {
+      console.log('fetchAgentInfo called with agentId:', agentId)
       const res = await fetch(`/api/users/${agentId}`)
       if (res.ok) {
         const data = await res.json()
-        setAgentInfo({ name: data.name, logoUrl: data.logoUrl })
+        console.log('Agent data received:', { id: agentId, name: data.name, logoUrl: data.logoUrl })
+        setAgentInfo({ id: agentId, name: data.name, logoUrl: data.logoUrl })
         // Extract colors from logo
         if (data.logoUrl) {
           extractColorsFromImage(data.logoUrl)
         }
+      } else {
+        console.log('fetchAgentInfo failed with status:', res.status)
       }
     } catch (error) {
       console.error('Error fetching agent info:', error)
@@ -249,7 +269,16 @@ export default function ClientFoldersPage() {
       const res = await fetch(`/api/users/${viewAsClientId}`)
       if (res.ok) {
         const data = await res.json()
+        console.log('fetchClientName - client data:', { name: data.name, agentId: data.agentId, role: session?.user?.role })
         setViewAsClientName(data.name)
+        // For ADMIN viewAs: fetch agent info based on client's assigned agent
+        // For AGENT viewAs: handled separately in useEffect (shows agent's own logo)
+        if (session?.user?.role === 'ADMIN' && data.agentId) {
+          console.log('ADMIN viewAs: fetching agent logo for agentId:', data.agentId)
+          fetchAgentInfo(data.agentId)
+        } else if (session?.user?.role === 'ADMIN' && !data.agentId) {
+          console.log('ADMIN viewAs: client has no agentId assigned!')
+        }
       }
     } catch (error) {
       console.error(error)
@@ -260,7 +289,26 @@ export default function ClientFoldersPage() {
     if (session?.user) {
       fetchFolders()
       fetchAllFiles()
+      fetchNotifications()
     }
+  }, [session, viewAsClientId])
+
+  // Auto-refresh data every 5 seconds (including agent logo for real-time updates)
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchFolders()
+      fetchAllFiles()
+      // Refresh agent logo in real-time
+      if (session?.user?.role === 'AGENT' && viewAsClientId) {
+        fetchAgentInfo(session.user.id)
+      } else if (session?.user?.role === 'CLIENT' && session?.user?.agentId) {
+        fetchAgentInfo(session.user.agentId)
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session, viewAsClientId])
 
   const fetchFolders = async () => {
@@ -292,6 +340,32 @@ export default function ClientFoldersPage() {
     } catch (error) {
       console.error(error)
     }
+  }
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data)
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error)
+    }
+  }
+
+  const formatTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'עכשיו'
+    if (diffMins < 60) return `לפני ${diffMins} דקות`
+    if (diffHours < 24) return `לפני ${diffHours} שעות`
+    return `לפני ${diffDays} ימים`
   }
 
   const formatDate = (dateStr: string) => {
@@ -369,27 +443,72 @@ export default function ClientFoldersPage() {
           </button>
         </div>
 
-        {/* Agent Viewing Mode Banner */}
-        {viewAsClientId && session?.user?.role === 'AGENT' && (
-          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-2 px-4">
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-2 text-black font-medium">
-                <Eye size={18} />
-                <span>מצב תצוגה כלקוח {viewAsClientName ? `- ${viewAsClientName}` : ''}</span>
+        {/* Agent/Admin Viewing Mode Banner */}
+        {viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN') && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {viewAsClientName || ''}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">רק אתם רואים</span>
               </div>
               <button
-                onClick={() => router.push('/agent/clients')}
-                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-black/20 hover:bg-black/30 text-black font-medium transition-all"
+                onClick={() => {
+                  const currentAgentId = agentInfo?.id || ''
+                  Swal.fire({
+                    title: 'לאן לחזור?',
+                    html: `
+                      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;">
+                        <button id="nav-admin-main" style="padding: 14px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; font-weight: 600; cursor: pointer; font-size: 15px;">
+                          עמוד מנהל ראשי
+                        </button>
+                        <button id="nav-admin-users" style="padding: 14px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #22c55e, #16a34a); color: white; font-weight: 600; cursor: pointer; font-size: 15px;">
+                          ניהול משתמשים מנהל
+                        </button>
+                        <button id="nav-agent-main" data-agent-id="${currentAgentId}" style="padding: 14px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; font-weight: 600; cursor: pointer; font-size: 15px;">
+                          עמוד ראשי של הסוכן
+                        </button>
+                        <button id="nav-agent-users" style="padding: 14px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; font-weight: 600; cursor: pointer; font-size: 15px;">
+                          ניהול משתמשים סוכן
+                        </button>
+                      </div>
+                    `,
+                    showConfirmButton: false,
+                    showCloseButton: true,
+                    background: '#0f172a',
+                    color: '#e8e8e8',
+                    didOpen: () => {
+                      document.getElementById('nav-admin-main')?.addEventListener('click', () => {
+                        Swal.close()
+                        router.push('/dashboard')
+                      })
+                      document.getElementById('nav-admin-users')?.addEventListener('click', () => {
+                        Swal.close()
+                        router.push('/admin/agents')
+                      })
+                      document.getElementById('nav-agent-main')?.addEventListener('click', (e) => {
+                        const agentId = (e.currentTarget as HTMLElement)?.getAttribute('data-agent-id')
+                        Swal.close()
+                        router.push(`/dashboard?agentId=${agentId}`)
+                      })
+                      document.getElementById('nav-agent-users')?.addEventListener('click', () => {
+                        Swal.close()
+                        router.push('/agent/clients')
+                      })
+                    }
+                  })
+                }}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
               >
-                <ArrowRight size={16} />
-                <span>חזור לניהול</span>
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
               </button>
             </div>
           </div>
         )}
 
         {/* Fixed Header with Logo and Hamburger */}
-        <header className={`fixed left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5 ${viewAsClientId && session?.user?.role === 'AGENT' ? 'top-10' : 'top-0'}`}>
+        <header className={`fixed left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5 ${viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN') ? 'top-10' : 'top-0'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -422,7 +541,7 @@ export default function ClientFoldersPage() {
                   >
                     <Bell size={20} className="text-foreground-muted" />
                     {/* Notification badge */}
-                    {notifications.some(n => n.isNew) && (
+                    {notifications.some(n => !n.isRead) && (
                       <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
                     )}
                   </button>
@@ -441,7 +560,7 @@ export default function ClientFoldersPage() {
                             התראות
                           </h3>
                           <span className="text-xs px-2 py-1 rounded-full bg-red-500/20 text-red-400">
-                            {notifications.filter(n => n.isNew).length} חדשות
+                            {notifications.filter(n => !n.isRead).length} חדשות
                           </span>
                         </div>
                         <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
@@ -449,19 +568,19 @@ export default function ClientFoldersPage() {
                             <div
                               key={notification.id}
                               className={`p-3 rounded-xl transition-all cursor-pointer ${
-                                notification.isNew
+                                !notification.isRead
                                   ? 'bg-primary/10 border border-primary/20 hover:bg-primary/20'
                                   : 'bg-white/5 hover:bg-white/10'
                               }`}
                             >
                               <div className="flex items-start gap-3">
-                                {notification.isNew && (
+                                {!notification.isRead && (
                                   <span className="w-2 h-2 mt-2 bg-primary rounded-full flex-shrink-0" />
                                 )}
-                                <div className={notification.isNew ? '' : 'mr-5'}>
+                                <div className={!notification.isRead ? '' : 'mr-5'}>
                                   <p className="font-medium text-sm">{notification.title}</p>
                                   <p className="text-xs text-foreground-muted mt-0.5">{notification.description}</p>
-                                  <p className="text-xs text-foreground-muted/60 mt-1">{notification.time}</p>
+                                  <p className="text-xs text-foreground-muted/60 mt-1">{formatTimeAgo(notification.createdAt)}</p>
                                 </div>
                               </div>
                             </div>
@@ -570,7 +689,7 @@ export default function ClientFoldersPage() {
         </header>
 
         {/* Hero Section - with top padding for fixed header */}
-        <div className={`relative overflow-hidden ${viewAsClientId && session?.user?.role === 'AGENT' ? 'pt-24' : 'pt-16'}`}>
+        <div className={`relative overflow-hidden ${viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN') ? 'pt-24' : 'pt-16'}`}>
           {/* Glow effects */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4" />
@@ -623,6 +742,10 @@ export default function ClientFoldersPage() {
                         style={{
                           filter: `drop-shadow(0 0 30px ${logoColors[0]}50)`
                         }}
+                        onError={(e) => {
+                          console.error('Logo failed to load:', agentInfo.logoUrl)
+                          e.currentTarget.src = '/uploads/logo-finance.png'
+                        }}
                       />
                     </div>
 
@@ -654,13 +777,22 @@ export default function ClientFoldersPage() {
                   </div>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-primary/20 to-accent/20 border border-white/10 mb-6 backdrop-blur-sm">
-                  <span className="text-sm font-medium">האזור האישי שלך</span>
+                <div className="mb-8 flex justify-center">
+                  <div className="relative group">
+                    <div className="absolute -inset-6 rounded-3xl opacity-40 blur-3xl group-hover:opacity-60 transition-all duration-700 animate-pulse-slow bg-gradient-to-r from-primary/50 via-accent/50 to-secondary/50" />
+                    <div className="relative p-5 md:p-7 rounded-2xl backdrop-blur-md shadow-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20">
+                      <img
+                        src="/uploads/logo-finance.png"
+                        alt="מגן פיננסי"
+                        className="relative h-24 md:h-32 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                שלום, <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">{session?.user?.name}</span>
+                שלום, <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">{viewAsClientId ? viewAsClientName : session?.user?.name}</span>
               </h1>
               <p className="text-xl text-foreground-muted max-w-md mx-auto">
                 מה נעשה עד היום עבורך..!
@@ -780,7 +912,7 @@ export default function ClientFoldersPage() {
                         {categoryFolders.map((folder, folderIndex) => (
                           <div
                             key={folder.id}
-                            onClick={() => router.push(`/client/folders/${folder.id}`)}
+                            onClick={() => router.push(`/client/folders/${folder.id}${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)}
                             className={`
                               relative overflow-hidden rounded-2xl p-6 cursor-pointer
                               bg-gradient-to-br ${config.bgGradient}
@@ -921,7 +1053,7 @@ export default function ClientFoldersPage() {
                       Array(folder._count.files).fill(null).map((_, i) => (
                         <div
                           key={`${folder.id}-${i}`}
-                          onClick={() => router.push(`/client/folders/${folder.id}`)}
+                          onClick={() => router.push(`/client/folders/${folder.id}${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)}
                           className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all cursor-pointer group"
                         >
                           <div className={`p-2 rounded-lg ${categoryConfig[folder.category].iconBg}`}>
@@ -1075,7 +1207,7 @@ export default function ClientFoldersPage() {
                   : 'bg-gradient-to-br from-white/20 to-white/10 border-2 border-white/30 hover:bg-white/20 hover:scale-105'
               }`}
             >
-              <Circle size={24} className={showDocuments ? 'text-black' : 'text-white'} fill={showDocuments ? 'black' : 'none'} />
+              <Copy size={24} className={showDocuments ? 'text-black' : 'text-white'} />
             </button>
 
             {/* Stats Button */}

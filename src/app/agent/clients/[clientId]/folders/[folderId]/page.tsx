@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight,
   Upload,
@@ -50,6 +50,13 @@ interface Folder {
   files: FileItem[]
 }
 
+interface ViewAsUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
 const getFileIcon = (fileType: string) => {
   switch (fileType.toUpperCase()) {
     case 'PDF':
@@ -84,6 +91,8 @@ export default function FolderFilesPage({
   const resolvedParams = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsId = searchParams.get('viewAs')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
   const [folder, setFolder] = useState<Folder | null>(null)
@@ -95,6 +104,20 @@ export default function FolderFilesPage({
   const [showNotifications, setShowNotifications] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
+
+  // Determine if admin is viewing as agent
+  const isViewingAs = !!viewAsId && session?.user?.role === 'ADMIN'
+
+  // Fetch viewAs user info
+  useEffect(() => {
+    if (viewAsId && session?.user?.role === 'ADMIN') {
+      fetch(`/api/users/${viewAsId}`)
+        .then(res => res.json())
+        .then(data => setViewAsUser(data))
+        .catch(console.error)
+    }
+  }, [viewAsId, session])
 
   const notifications = [
     { id: 1, title: 'קובץ הועלה', description: 'הקובץ נוסף בהצלחה', time: 'לפני 2 שעות', isNew: true },
@@ -111,6 +134,17 @@ export default function FolderFilesPage({
     if (session?.user) {
       fetchFolder()
     }
+  }, [session, resolvedParams.folderId])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchFolder()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session, resolvedParams.folderId])
 
   const fetchFolder = async () => {
@@ -271,7 +305,7 @@ export default function FolderFilesPage({
             <p className="text-foreground-muted mb-6">התיקייה שחיפשת לא קיימת או שאין לך גישה אליה</p>
             <Button
               variant="primary"
-              onClick={() => router.push(`/agent/clients/${resolvedParams.clientId}/folders`)}
+              onClick={() => router.push(`/agent/clients/${resolvedParams.clientId}/folders${viewAsId ? `?viewAs=${viewAsId}` : ''}`)}
             >
               <ArrowRight size={18} className="ml-2" />
               חזרה לתיקיות
@@ -282,11 +316,47 @@ export default function FolderFilesPage({
     )
   }
 
+  // Handle back navigation - preserve viewAs context
+  const handleGoBack = () => {
+    if (viewAsId) {
+      router.push(`/agent/clients/${resolvedParams.clientId}/folders?viewAs=${viewAsId}`)
+    } else {
+      router.push(`/agent/clients/${resolvedParams.clientId}/folders`)
+    }
+  }
+
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative">
+        {/* Admin Viewing As Banner */}
+        {isViewingAs && viewAsUser && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {viewAsUser.name}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">את הפס הכתום רק אתם רואים</span>
+              </div>
+              <button
+                onClick={() => router.push('/admin/agents')}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
+              >
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Agent Blue Glow Effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-blue-500/12 rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[150px]" />
+        </div>
+
         {/* Modern Header */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-background-card/80 backdrop-blur-xl border-b border-primary/10">
+        <header className={`fixed left-0 right-0 z-50 bg-background-card/80 backdrop-blur-xl border-b border-primary/10 ${isViewingAs ? 'top-10' : 'top-0'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -376,14 +446,14 @@ export default function FolderFilesPage({
 
                         <div className="p-2">
                           <button
-                            onClick={() => router.push('/agent')}
+                            onClick={() => router.push(viewAsId ? `/dashboard?viewAs=${viewAsId}` : '/dashboard')}
                             className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-xl transition-all text-right"
                           >
                             <User size={20} className="text-primary" />
                             <span>לוח בקרה</span>
                           </button>
                           <button
-                            onClick={() => router.push('/settings')}
+                            onClick={() => router.push(viewAsId ? `/settings?viewAs=${viewAsId}` : '/settings')}
                             className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-xl transition-all text-right"
                           >
                             <Settings size={20} className="text-primary" />
@@ -410,12 +480,12 @@ export default function FolderFilesPage({
         </header>
 
         {/* Main Content */}
-        <main className="pt-20 pb-8 px-4">
+        <main className={`pb-8 px-4 ${isViewingAs ? 'pt-28' : 'pt-20'}`}>
           <div className="max-w-7xl mx-auto">
             {/* Back Button & Title Section */}
             <div className="mb-8">
               <button
-                onClick={() => router.push(`/agent/clients/${resolvedParams.clientId}/folders`)}
+                onClick={handleGoBack}
                 className="flex items-center gap-2 text-foreground-muted hover:text-primary transition-all mb-4 group"
               >
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />

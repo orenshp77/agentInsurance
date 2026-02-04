@@ -1,11 +1,11 @@
 'use client'
 
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   Users, FolderOpen, FileText, TrendingUp, ArrowUpRight,
-  Bell, Eye, Clock, Menu, LogOut, Home, Settings
+  Bell, Eye, Clock, Menu, LogOut, Home, Settings, AlertTriangle, LogIn, ArrowRight
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
@@ -21,15 +21,26 @@ interface RecentFile {
   id: string
   fileName: string
   fileType: string
+  fileUrl?: string
   createdAt: string
   folder: {
+    id: string
     name: string
     category: string
     user?: {
+      id: string
       name: string
       role: string
     }
   }
+}
+
+interface ActivityMetadata {
+  fileUrl?: string
+  folderId?: string
+  folderName?: string
+  clientId?: string
+  clientName?: string
 }
 
 interface Activity {
@@ -40,6 +51,7 @@ interface Activity {
   userRole?: string
   targetName?: string
   targetType?: string
+  metadata?: string | ActivityMetadata
   createdAt: string
 }
 
@@ -50,9 +62,30 @@ interface AgentInfo {
   phone?: string
 }
 
+interface ViewAsUser {
+  id: string
+  name: string
+  email: string
+  role: string
+  logoUrl?: string
+}
+
+interface Notification {
+  id: string
+  title: string
+  description: string
+  type: string
+  isRead: boolean
+  forRole: string
+  createdAt: string
+}
+
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsId = searchParams.get('viewAs')
+  const agentId = searchParams.get('agentId')
   const [stats, setStats] = useState<Stats>({ users: 0, folders: 0, files: 0 })
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -61,16 +94,83 @@ export default function DashboardPage() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [agentLogo, setAgentLogo] = useState<string | null>(null)
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null)
+  const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
+  const [notifications, setNotifications] = useState<Notification[]>([])
+
+  // Fetch viewAs user info or agent info
+  useEffect(() => {
+    if (viewAsId && session?.user?.role === 'ADMIN') {
+      fetchViewAsUser()
+    }
+    // When agentId is provided, fetch agent info directly
+    if (agentId && session?.user?.role === 'ADMIN') {
+      fetchAgentById(agentId)
+    }
+  }, [viewAsId, agentId, session])
+
+  const fetchViewAsUser = async () => {
+    try {
+      const res = await fetch(`/api/users/${viewAsId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setViewAsUser(data)
+        // If viewing as agent, also get their logo
+        if (data.role === 'AGENT' && data.logoUrl) {
+          setAgentLogo(data.logoUrl)
+          setAgentInfo(data)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching viewAs user:', error)
+    }
+  }
+
+  const fetchAgentById = async (id: string) => {
+    try {
+      const res = await fetch(`/api/users/${id}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.role === 'AGENT') {
+          setViewAsUser(data)
+          setAgentLogo(data.logoUrl)
+          setAgentInfo(data)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching agent:', error)
+    }
+  }
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data)
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error)
+    }
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
     }
-    // Redirect clients to their folders page
+    // Redirect new users (profile not completed) to settings page
+    if (status === 'authenticated' && session?.user && !session.user.profileCompleted && session.user.role !== 'ADMIN') {
+      router.push('/settings?welcome=true')
+      return
+    }
+    // Redirect clients to their folders page (unless admin viewing as client)
     if (status === 'authenticated' && session?.user?.role === 'CLIENT') {
       router.push('/client/folders')
     }
-  }, [status, session, router])
+    // If admin is viewing as a client, redirect to client folders page
+    if (status === 'authenticated' && session?.user?.role === 'ADMIN' && viewAsUser?.role === 'CLIENT') {
+      router.push(`/client/folders?viewAs=${viewAsId}`)
+    }
+  }, [status, session, router, viewAsUser, viewAsId])
 
   useEffect(() => {
     if (session?.user) {
@@ -78,7 +178,21 @@ export default function DashboardPage() {
       fetchRecentFiles()
       fetchActivities()
       fetchAgentInfo()
+      fetchNotifications()
     }
+  }, [session])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchStats()
+      fetchRecentFiles()
+      fetchActivities()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session])
 
   const fetchAgentInfo = async () => {
@@ -194,13 +308,37 @@ export default function DashboardPage() {
     return `לפני ${diffDays} ימים`
   }
 
-  const isClient = session.user.role === 'CLIENT'
-  const isAdmin = session.user.role === 'ADMIN'
-  const isAgent = session.user.role === 'AGENT'
+  // Use viewAs role if admin is impersonating
+  const effectiveRole = viewAsUser?.role || session.user.role
+  const effectiveName = viewAsUser?.name || session.user.name
+  const isViewingAs = !!viewAsUser && session.user.role === 'ADMIN'
+
+  const isClient = effectiveRole === 'CLIENT'
+  const isAdmin = effectiveRole === 'ADMIN'
+  const isAgent = effectiveRole === 'AGENT'
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
       <div className={`min-h-screen overflow-x-hidden relative bg-mesh bg-grid ${isAdmin ? 'bg-[#0a1a0f]' : isAgent ? 'bg-[#050a14]' : 'bg-background'}`}>
+        {/* Admin Viewing As Banner */}
+        {isViewingAs && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {viewAsUser?.name}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">את הפס הכתום רק אתם רואים</span>
+              </div>
+              <button
+                onClick={() => router.push('/admin/agents')}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
+              >
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
+              </button>
+            </div>
+          </div>
+        )}
         {/* Admin Green Glow Effects */}
         {isAdmin && (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -224,7 +362,7 @@ export default function DashboardPage() {
         )}
 
         {/* Fixed Header with Hamburger Menu */}
-        <header className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b ${isAdmin ? 'bg-[#0a1a0f]/90 border-emerald-500/20' : isAgent ? 'bg-[#050a14]/90 border-blue-500/20' : 'bg-background/90 border-white/10'}`}>
+        <header className={`fixed left-0 right-0 z-50 backdrop-blur-md border-b ${isViewingAs ? 'top-10' : 'top-0'} ${isAdmin ? 'bg-[#0a1a0f]/90 border-emerald-500/20' : isAgent ? 'bg-[#050a14]/90 border-blue-500/20' : 'bg-background/90 border-white/10'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -256,7 +394,9 @@ export default function DashboardPage() {
                     className="relative p-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
                   >
                     <Bell size={20} className="text-foreground-muted" />
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-tertiary rounded-full animate-pulse" />
+                    {notifications.some(n => !n.isRead) && (
+                      <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-tertiary rounded-full animate-pulse" />
+                    )}
                   </button>
 
                   {showNotifications && (
@@ -268,9 +408,40 @@ export default function DashboardPage() {
                             <Bell size={18} className={isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-primary'} />
                             התראות
                           </h3>
+                          {notifications.filter(n => !n.isRead).length > 0 && (
+                            <span className={`text-xs px-2 py-1 rounded-full ${isAdmin ? 'bg-emerald-500/20 text-emerald-400' : isAgent ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {notifications.filter(n => !n.isRead).length} חדשות
+                            </span>
+                          )}
                         </div>
-                        <div className="p-4 text-center text-foreground-muted">
-                          אין התראות חדשות
+                        <div className="space-y-2 max-h-72 overflow-y-auto">
+                          {notifications.length === 0 ? (
+                            <div className="p-4 text-center text-foreground-muted">
+                              אין התראות חדשות
+                            </div>
+                          ) : (
+                            notifications.map((notification) => (
+                              <div
+                                key={notification.id}
+                                className={`p-3 rounded-xl transition-all cursor-pointer ${
+                                  !notification.isRead
+                                    ? isAdmin ? 'bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20' : isAgent ? 'bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20' : 'bg-primary/10 border border-primary/20 hover:bg-primary/20'
+                                    : 'bg-white/5 hover:bg-white/10'
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  {!notification.isRead && (
+                                    <span className={`w-2 h-2 mt-2 rounded-full flex-shrink-0 ${isAdmin ? 'bg-emerald-400' : isAgent ? 'bg-blue-400' : 'bg-primary'}`} />
+                                  )}
+                                  <div className={!notification.isRead ? '' : 'mr-5'}>
+                                    <p className="font-medium text-sm">{notification.title}</p>
+                                    <p className="text-xs text-foreground-muted mt-0.5">{notification.description}</p>
+                                    <p className="text-xs text-foreground-muted/60 mt-1">{formatTimeAgo(notification.createdAt)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
                         </div>
                       </div>
                     </>
@@ -338,7 +509,7 @@ export default function DashboardPage() {
                         {isAgent && (
                           <button
                             onClick={() => {
-                              router.push('/agent/clients')
+                              router.push(viewAsId ? `/agent/clients?viewAs=${viewAsId}` : '/agent/clients')
                               setShowMenu(false)
                             }}
                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-blue-500/10 transition-all text-right"
@@ -367,7 +538,7 @@ export default function DashboardPage() {
 
                         <button
                           onClick={() => {
-                            router.push('/settings')
+                            router.push(isViewingAs ? `/settings?viewAs=${viewAsId}` : '/settings')
                             setShowMenu(false)
                           }}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${isAdmin ? 'hover:bg-emerald-500/10' : isAgent ? 'hover:bg-blue-500/10' : 'hover:bg-white/10'}`}
@@ -377,6 +548,21 @@ export default function DashboardPage() {
                           </div>
                           <span>הגדרות</span>
                         </button>
+
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              router.push('/admin/logs')
+                              setShowMenu(false)
+                            }}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-orange-500/10 transition-all text-right"
+                          >
+                            <div className="p-2 rounded-lg bg-orange-500/20">
+                              <AlertTriangle size={18} className="text-orange-400" />
+                            </div>
+                            <span>לוגים ותקלות</span>
+                          </button>
+                        )}
 
                         <div className="my-2 h-px bg-white/10" />
 
@@ -404,18 +590,42 @@ export default function DashboardPage() {
           <div className="blob-2 top-1/2 -left-60" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 pt-24 pb-6 relative z-10">
+        <div className={`max-w-7xl mx-auto px-4 pb-6 relative z-10 ${isViewingAs ? 'pt-32' : 'pt-24'}`}>
           {/* Agent Logo Display - For Agents and Clients */}
-          {agentLogo && !isAdmin && (
+          {isAgent && (
             <div className="flex flex-col items-center justify-center mb-8 animate-fade-in-up">
-              <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 ${isAgent ? 'border-blue-500/30 shadow-blue-500/20' : 'border-primary/30 shadow-primary/20'}`}>
+              <div
+                onClick={!agentLogo ? () => router.push(isViewingAs ? `/settings?viewAs=${viewAsId}` : '/settings') : undefined}
+                className={`w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-blue-500/30 shadow-blue-500/20 ${!agentLogo ? 'cursor-pointer hover:scale-105' : ''} transition-transform ${!agentLogo ? 'flex items-center justify-center' : ''}`}
+                title={!agentLogo ? 'לחץ להעלאת לוגו' : undefined}
+              >
+                {agentLogo ? (
+                  <img
+                    src={agentLogo}
+                    alt={agentInfo?.name || 'לוגו'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-center p-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mb-2">
+                      <Users size={32} className="text-blue-400" />
+                    </div>
+                    <span className="text-xs text-blue-400">לחץ להעלאת לוגו</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {isClient && (
+            <div className="flex flex-col items-center justify-center mb-8 animate-fade-in-up">
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-primary/30 shadow-primary/20">
                 <img
-                  src={agentLogo}
-                  alt={agentInfo?.name || 'לוגו'}
+                  src={agentLogo || '/uploads/logo-finance.png'}
+                  alt={agentInfo?.name || 'מגן פיננסי'}
                   className="w-full h-full object-cover"
                 />
               </div>
-              {isClient && agentInfo && (
+              {agentInfo && (
                 <div className="text-center">
                   <p className="text-foreground-muted text-sm">הסוכן שלך</p>
                   <p className="text-xl font-bold text-gradient">{agentInfo.name}</p>
@@ -429,7 +639,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-foreground-muted text-sm mb-1">{getGreeting()} 👋</p>
               <h1 className="text-2xl md:text-3xl font-bold mb-1">
-                שלום, <span className={isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-gradient'}>{session.user.name}</span>
+                שלום, <span className={isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-gradient'}>{effectiveName}</span>
               </h1>
               <p className="text-foreground-subtle text-sm">מה נעשה היום?</p>
             </div>
@@ -541,19 +751,19 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  onClick={() => router.push('/admin/agents')}
-                  className="glass-card p-4 md:p-6 rounded-2xl text-right hover:border-emerald-500/30 transition-all group"
+                  onClick={() => router.push('/admin/logs')}
+                  className="glass-card p-4 md:p-6 rounded-2xl text-right hover:border-orange-500/30 transition-all group"
                 >
                   <div className="flex items-center justify-between mb-3 md:mb-4">
-                    <ArrowUpRight size={18} className="text-foreground-muted group-hover:text-emerald-400 transition-colors md:hidden" />
-                    <ArrowUpRight size={20} className="text-foreground-muted group-hover:text-emerald-400 transition-colors hidden md:block" />
-                    <div className="p-2 md:p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600">
-                      <FolderOpen size={20} className="text-white md:hidden" />
-                      <FolderOpen size={24} className="text-white hidden md:block" />
+                    <ArrowUpRight size={18} className="text-foreground-muted group-hover:text-orange-400 transition-colors md:hidden" />
+                    <ArrowUpRight size={20} className="text-foreground-muted group-hover:text-orange-400 transition-colors hidden md:block" />
+                    <div className="p-2 md:p-3 rounded-xl bg-gradient-to-br from-orange-500 to-red-600">
+                      <AlertTriangle size={20} className="text-white md:hidden" />
+                      <AlertTriangle size={24} className="text-white hidden md:block" />
                     </div>
                   </div>
-                  <h4 className="font-bold text-sm md:text-lg mb-1">צפה בתיקים</h4>
-                  <p className="text-foreground-muted text-xs md:text-sm">כל התיקיות והמסמכים</p>
+                  <h4 className="font-bold text-sm md:text-lg mb-1">לוגים ותקלות</h4>
+                  <p className="text-foreground-muted text-xs md:text-sm">מעקב שגיאות</p>
                 </button>
               </div>
             </div>
@@ -568,7 +778,7 @@ export default function DashboardPage() {
               </h2>
 
               <button
-                onClick={() => router.push('/agent/clients')}
+                onClick={() => router.push(viewAsId ? `/agent/clients?viewAs=${viewAsId}` : '/agent/clients')}
                 className="w-full glass-card p-6 md:p-8 rounded-2xl text-right hover:border-blue-500/30 transition-all group"
               >
                 <div className="flex items-center gap-4 md:gap-6">
@@ -594,7 +804,7 @@ export default function DashboardPage() {
                 <p className="text-foreground-muted text-sm mb-4">בחר קטגוריה להעלאת מסמכים</p>
                 <div className="grid grid-cols-3 gap-3">
                   <button
-                    onClick={() => router.push('/agent/upload/insurance')}
+                    onClick={() => router.push(viewAsId ? `/agent/upload/insurance?viewAs=${viewAsId}` : '/agent/upload/insurance')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 hover:from-blue-500/30 hover:to-blue-600/20 transition-all group"
                   >
                     <div className="p-3 rounded-xl bg-blue-500">
@@ -603,7 +813,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-blue-400">ביטוח</span>
                   </button>
                   <button
-                    onClick={() => router.push('/agent/upload/finance')}
+                    onClick={() => router.push(viewAsId ? `/agent/upload/finance?viewAs=${viewAsId}` : '/agent/upload/finance')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 hover:from-purple-500/30 hover:to-purple-600/20 transition-all group"
                   >
                     <div className="p-3 rounded-xl bg-purple-500">
@@ -612,7 +822,7 @@ export default function DashboardPage() {
                     <span className="text-sm font-medium text-purple-400">פיננסים</span>
                   </button>
                   <button
-                    onClick={() => router.push('/agent/upload/car')}
+                    onClick={() => router.push(viewAsId ? `/agent/upload/car?viewAs=${viewAsId}` : '/agent/upload/car')}
                     className="flex flex-col items-center gap-2 p-4 rounded-xl bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/30 hover:from-emerald-500/30 hover:to-emerald-600/20 transition-all group"
                   >
                     <div className="p-3 rounded-xl bg-emerald-500">
@@ -644,50 +854,86 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {/* Activities (registrations, etc.) */}
-                  {activities.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition-all"
-                    >
-                      <div className={`p-2 rounded-lg ${
-                        activity.type === 'USER_REGISTERED'
-                          ? activity.userRole === 'AGENT'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-green-500/20 text-green-400'
-                          : activity.type === 'FILE_UPLOADED'
-                            ? 'bg-purple-500/20 text-purple-400'
-                            : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        <Users size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate">{activity.description}</h4>
-                        <div className="flex items-center gap-2 text-xs text-foreground-subtle">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                            activity.userRole === 'AGENT'
-                              ? 'bg-blue-500/20 text-blue-400'
-                              : activity.userRole === 'ADMIN'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                  {activities.map((activity) => {
+                    // Parse metadata if it's a string
+                    const metadata: ActivityMetadata = activity.metadata
+                      ? (typeof activity.metadata === 'string' ? JSON.parse(activity.metadata) : activity.metadata)
+                      : {}
+
+                    return (
+                      <div
+                        key={activity.id}
+                        className="rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition-all"
+                      >
+                        <div className={`p-2 rounded-lg ${
+                          activity.type === 'LOGIN'
+                            ? activity.userRole === 'ADMIN'
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : activity.userRole === 'AGENT'
+                                ? 'bg-blue-500/20 text-blue-400'
                                 : 'bg-purple-500/20 text-purple-400'
-                          }`}>
-                            {activity.userRole === 'AGENT' ? 'סוכן' : activity.userRole === 'ADMIN' ? 'מנהל' : 'לקוח'}
+                            : activity.type === 'USER_REGISTERED'
+                              ? activity.userRole === 'AGENT'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : 'bg-green-500/20 text-green-400'
+                              : activity.type === 'FILE_UPLOADED'
+                                ? 'bg-purple-500/20 text-purple-400'
+                                : 'bg-amber-500/20 text-amber-400'
+                        }`}>
+                          {activity.type === 'LOGIN' ? <LogIn size={16} /> :
+                           activity.type === 'FILE_UPLOADED' ? <FileText size={16} /> : <Users size={16} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {activity.type === 'FILE_UPLOADED' && metadata.fileUrl ? (
+                            <a
+                              href={metadata.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-sm truncate block hover:text-primary transition-colors cursor-pointer"
+                            >
+                              {activity.description}
+                            </a>
+                          ) : (
+                            <h4 className="font-medium text-sm truncate">{activity.description}</h4>
+                          )}
+                          <div className="flex items-center gap-2 text-xs text-foreground-subtle">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                              activity.userRole === 'AGENT'
+                                ? 'bg-blue-500/20 text-blue-400'
+                                : activity.userRole === 'ADMIN'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-purple-500/20 text-purple-400'
+                            }`}>
+                              {activity.userRole === 'AGENT' ? 'סוכן' : activity.userRole === 'ADMIN' ? 'מנהל' : 'לקוח'}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Show client name for file uploads */}
+                        {activity.type === 'FILE_UPLOADED' && metadata.clientName && (
+                          <button
+                            onClick={() => router.push(`/agent/clients/${metadata.clientId}/folders/${metadata.folderId}${viewAsId ? `?viewAs=${viewAsId}` : ''}`)}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors flex-shrink-0"
+                          >
+                            <span className="text-primary text-xs font-medium truncate max-w-[100px]">
+                              {metadata.clientName}
+                            </span>
+                          </button>
+                        )}
+                        <div className="text-left flex-shrink-0">
+                          <span className="text-foreground-subtle text-xs flex items-center gap-1">
+                            <Clock size={10} />
+                            {formatTimeAgo(activity.createdAt)}
                           </span>
                         </div>
                       </div>
-                      <div className="text-left flex-shrink-0">
-                        <span className="text-foreground-subtle text-xs flex items-center gap-1">
-                          <Clock size={10} />
-                          {formatTimeAgo(activity.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
 
                   {/* Recent Files */}
                   {recentFiles.map((file) => (
                     <div
                       key={file.id}
-                      className="rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition-all cursor-pointer"
+                      className="rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition-all"
                     >
                       <div className={`p-2 rounded-lg ${
                         file.fileType === 'PDF'
@@ -701,17 +947,32 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate">{file.fileName}</h4>
+                        {file.fileUrl ? (
+                          <a
+                            href={file.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-sm truncate block hover:text-primary transition-colors cursor-pointer"
+                          >
+                            {file.fileName}
+                          </a>
+                        ) : (
+                          <h4 className="font-medium text-sm truncate">{file.fileName}</h4>
+                        )}
                         <div className="flex items-center gap-2 text-xs text-foreground-subtle">
                           <span className="truncate">{file.folder?.name || 'תיקייה'}</span>
-                          {file.folder?.user && (
-                            <>
-                              <span>•</span>
-                              <span className="text-primary truncate">{file.folder.user.name}</span>
-                            </>
-                          )}
                         </div>
                       </div>
+                      {file.folder?.user && (
+                        <button
+                          onClick={() => router.push(`/agent/clients/${file.folder.user?.id}/folders/${file.folder.id}${viewAsId ? `?viewAs=${viewAsId}` : ''}`)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors flex-shrink-0"
+                        >
+                          <span className="text-primary text-xs font-medium truncate max-w-[100px]">
+                            {file.folder.user.name}
+                          </span>
+                        </button>
+                      )}
                       <div className="text-left flex-shrink-0">
                         <span className="text-foreground-subtle text-xs flex items-center gap-1">
                           <Clock size={10} />

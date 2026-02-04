@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Menu, X, LogOut, User, Bell, Settings, UserPlus, FileText } from 'lucide-react'
+import { Menu, X, LogOut, User, Bell, Settings, UserPlus, FileText, AlertTriangle } from 'lucide-react'
 
 interface Activity {
   id: string
@@ -259,6 +259,24 @@ export default function Header() {
                   <User size={20} className="text-primary" />
                   <span>דשבורד</span>
                 </button>
+                {session.user.role === 'ADMIN' && (
+                  <>
+                    <button
+                      onClick={() => { router.push('/admin/agents'); setMenuOpen(false) }}
+                      className="w-full p-3 rounded-xl hover:bg-white/5 transition-all flex items-center gap-3 text-right"
+                    >
+                      <UserPlus size={20} className="text-green-400" />
+                      <span>ניהול סוכנים</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/admin/logs'); setMenuOpen(false) }}
+                      className="w-full p-3 rounded-xl hover:bg-white/5 transition-all flex items-center gap-3 text-right"
+                    >
+                      <AlertTriangle size={20} className="text-orange-400" />
+                      <span>לוגים ותקלות</span>
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => { router.push('/settings'); setMenuOpen(false) }}
                   className="w-full p-3 rounded-xl hover:bg-white/5 transition-all flex items-center gap-3 text-right"

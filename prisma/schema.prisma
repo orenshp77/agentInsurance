@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -27,14 +27,16 @@ enum ErrorLevel {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  role      Role     @default(CLIENT)
-  name      String
-  phone     String?
-  idNumber  String?  @unique
-  logoUrl   String?  // Agent logo URL
+  id               String   @id @default(cuid())
+  email            String   @unique
+  password         String
+  role             Role     @default(CLIENT)
+  name             String
+  phone            String?
+  idNumber         String?  @unique
+  logoUrl          String?  // Agent logo URL
+  profileCompleted Boolean  @default(false) // Has user completed profile setup
+  formerAgentName  String?  // Name of deleted agent (for orphaned clients)
 
   // Agent relationship - clients belong to agents
   agentId   String?
@@ -60,6 +62,7 @@ model Notification {
   description String
   type        String   // FILE_UPLOAD, FOLDER_CREATED, etc.
   isRead      Boolean  @default(false)
+  forRole     Role     @default(CLIENT) // Which role level should see this notification
 
   // Notification belongs to a user
   userId      String
@@ -69,6 +72,7 @@ model Notification {
 
   @@index([userId])
   @@index([isRead])
+  @@index([forRole])
 }
 
 model Folder {

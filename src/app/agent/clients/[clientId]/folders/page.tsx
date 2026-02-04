@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Trash2, ArrowRight, FileText, Upload, Shield, Wallet, Car,
   Home, User, Phone, Mail, MessageCircle, Grid3X3, X, Files, Clock,
@@ -44,6 +44,13 @@ interface FileItem {
   }
 }
 
+interface ViewAsUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
 const categoryConfig = {
   INSURANCE: {
     icon: Shield,
@@ -81,11 +88,14 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
   const resolvedParams = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsId = searchParams.get('viewAs')
   const [client, setClient] = useState<Client | null>(null)
   const [folders, setFolders] = useState<Folder[]>([])
   const [allFiles, setAllFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     category: 'INSURANCE' as 'INSURANCE' | 'FINANCE' | 'CAR',
@@ -97,6 +107,19 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
   // Header menu states
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+
+  // Determine if admin is viewing as agent
+  const isViewingAs = !!viewAsId && session?.user?.role === 'ADMIN'
+
+  // Fetch viewAs user info
+  useEffect(() => {
+    if (viewAsId && session?.user?.role === 'ADMIN') {
+      fetch(`/api/users/${viewAsId}`)
+        .then(res => res.json())
+        .then(data => setViewAsUser(data))
+        .catch(console.error)
+    }
+  }, [viewAsId, session])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -110,6 +133,18 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
       fetchFolders()
       fetchAllFiles()
     }
+  }, [session, resolvedParams.clientId])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchFolders()
+      fetchAllFiles()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session, resolvedParams.clientId])
 
   const fetchClient = async () => {
@@ -231,11 +266,47 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
     )
   }
 
+  // Handle back navigation - preserve viewAs context
+  const handleGoBack = () => {
+    if (viewAsId) {
+      router.push(`/agent/clients?viewAs=${viewAsId}`)
+    } else {
+      router.push('/agent/clients')
+    }
+  }
+
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-32">
+      <div className="min-h-screen pb-32 relative">
+        {/* Admin Viewing As Banner */}
+        {isViewingAs && viewAsUser && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {client?.name}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">רק אתם רואים</span>
+              </div>
+              <button
+                onClick={() => router.push('/admin/agents')}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
+              >
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Agent Blue Glow Effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-blue-500/12 rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[150px]" />
+        </div>
+
         {/* Fixed Top Header with Hamburger Menu */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-background-card/80 backdrop-blur-xl border-b border-primary/10">
+        <header className={`fixed left-0 right-0 z-50 bg-background-card/80 backdrop-blur-xl border-b border-primary/10 ${isViewingAs ? 'top-10' : 'top-0'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -305,21 +376,21 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
 
                         <div className="p-2">
                           <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push(viewAsId ? `/dashboard?viewAs=${viewAsId}` : '/dashboard')}
                             className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-xl transition-all text-right"
                           >
                             <Home size={20} className="text-primary" />
                             <span>לוח בקרה</span>
                           </button>
                           <button
-                            onClick={() => router.push('/agent/clients')}
+                            onClick={() => router.push(viewAsId ? `/agent/clients?viewAs=${viewAsId}` : '/agent/clients')}
                             className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-xl transition-all text-right"
                           >
                             <User size={20} className="text-primary" />
                             <span>ניהול לקוחות</span>
                           </button>
                           <button
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push(viewAsId ? `/dashboard?viewAs=${viewAsId}` : '/dashboard')}
                             className="w-full flex items-center gap-3 p-3 hover:bg-primary/10 rounded-xl transition-all text-right"
                           >
                             <Settings size={20} className="text-primary" />
@@ -358,7 +429,7 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
           <div className="relative max-w-7xl mx-auto px-4 py-6 md:py-10">
             {/* Back Button */}
             <button
-              onClick={() => router.push('/agent/clients')}
+              onClick={handleGoBack}
               className="flex items-center gap-2 text-foreground-muted hover:text-foreground mb-6 transition-colors group"
             >
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -484,7 +555,7 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
                     style={{ animationDelay: `${index * 0.05}s` }}
                     onClick={() =>
                       router.push(
-                        `/agent/clients/${resolvedParams.clientId}/folders/${folder.id}`
+                        `/agent/clients/${resolvedParams.clientId}/folders/${folder.id}${viewAsId ? `?viewAs=${viewAsId}` : ''}`
                       )
                     }
                   >
@@ -540,7 +611,7 @@ export default function ClientFoldersPage({ params }: { params: Promise<{ client
           >
             {/* Home Button */}
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push(viewAsId ? `/dashboard?viewAs=${viewAsId}` : '/dashboard')}
               className="p-3 rounded-2xl bg-gradient-to-br from-lime-400 to-green-500 hover:from-lime-300 hover:to-green-400 transition-all shadow-lg"
               style={{ boxShadow: '0 4px 15px rgba(163, 230, 53, 0.3)' }}
             >

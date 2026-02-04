@@ -33,6 +33,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
+        // Record login activity
+        try {
+          await prisma.activity.create({
+            data: {
+              type: 'LOGIN',
+              description: `${user.name} התחבר למערכת`,
+              userId: user.id,
+              userName: user.name,
+              userRole: user.role,
+            },
+          })
+        } catch (error) {
+          console.error('Error recording login activity:', error)
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -40,6 +55,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           logoUrl: user.logoUrl,
           agentId: user.agentId,
+          profileCompleted: user.profileCompleted,
         }
       },
     }),
@@ -51,6 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = (user as { role: string }).role
         token.logoUrl = (user as { logoUrl?: string }).logoUrl
         token.agentId = (user as { agentId?: string }).agentId
+        token.profileCompleted = (user as { profileCompleted?: boolean }).profileCompleted
       }
       return token
     },
@@ -60,6 +77,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.role = token.role as string
         session.user.logoUrl = token.logoUrl as string | undefined
         session.user.agentId = token.agentId as string | undefined
+        session.user.profileCompleted = token.profileCompleted as boolean | undefined
       }
       return session
     },

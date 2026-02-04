@@ -1,14 +1,25 @@
 'use client'
 
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Home, Users, FolderOpen, Bell, Settings, Plus, FileText } from 'lucide-react'
-import { useState } from 'react'
+import { Home, Users, FolderOpen, Bell, Settings, Plus, FileText, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export default function MobileNav() {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
+
+  // Get viewAs or agentId from URL to preserve context
+  const viewAsId = searchParams.get('viewAs')
+  const agentIdParam = searchParams.get('agentId')
   const [showActions, setShowActions] = useState(false)
 
   if (!session?.user) return null
@@ -17,21 +28,35 @@ export default function MobileNav() {
   const isAgent = session.user.role === 'AGENT'
   const isClient = session.user.role === 'CLIENT'
 
+  // Build path with preserved parameters
+  const buildPath = (basePath: string) => {
+    // Preserve viewAs or agentId parameters for agent-related pages
+    if (basePath.startsWith('/agent/') || basePath === '/dashboard') {
+      if (viewAsId) {
+        return `${basePath}?viewAs=${viewAsId}`
+      }
+      if (agentIdParam) {
+        return `${basePath}?agentId=${agentIdParam}`
+      }
+    }
+    return basePath
+  }
+
   // Define navigation items based on role
   const getNavItems = () => {
     if (isAdmin) {
       return [
-        { icon: Home, label: 'בית', path: '/dashboard' },
+        { icon: Home, label: 'בית', path: buildPath('/dashboard') },
         { icon: Users, label: 'סוכנים', path: '/admin/agents' },
-        { icon: Bell, label: 'התראות', path: '/dashboard' },
+        { icon: AlertTriangle, label: 'לוגים', path: '/admin/logs' },
         { icon: Settings, label: 'הגדרות', path: '/settings' },
       ]
     }
     if (isAgent) {
       return [
-        { icon: Home, label: 'בית', path: '/dashboard' },
-        { icon: Users, label: 'לקוחות', path: '/agent/clients' },
-        { icon: Bell, label: 'התראות', path: '/dashboard' },
+        { icon: Home, label: 'בית', path: buildPath('/dashboard') },
+        { icon: Users, label: 'לקוחות', path: buildPath('/agent/clients') },
+        { icon: Bell, label: 'התראות', path: buildPath('/dashboard') },
         { icon: Settings, label: 'הגדרות', path: '/settings' },
       ]
     }
@@ -48,25 +73,29 @@ export default function MobileNav() {
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
 
-  return (
+  const navContent = (
     <>
       {/* Floating Action Button Menu */}
       {showActions && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-[9998] md:hidden"
           onClick={() => setShowActions(false)}
         />
       )}
 
       {/* Quick Actions Popup */}
       {showActions && (isAgent || isAdmin) && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 md:hidden animate-scale-in">
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[9999] md:hidden animate-scale-in">
           <div className="bg-[#0d1117] border-2 border-[#30363d] rounded-2xl p-4 flex gap-3 shadow-[0_8px_40px_rgba(0,0,0,0.8)]">
             {isAgent && (
               <>
                 <button
                   onClick={() => {
-                    router.push('/agent/clients?action=new')
+                    const params = new URLSearchParams()
+                    params.set('action', 'new')
+                    if (viewAsId) params.set('viewAs', viewAsId)
+                    if (agentIdParam) params.set('agentId', agentIdParam)
+                    router.push(`/agent/clients?${params.toString()}`)
                     setShowActions(false)
                   }}
                   className="flex flex-col items-center gap-2 p-4 rounded-xl bg-primary/20 hover:bg-primary/30 transition-all"
@@ -108,9 +137,9 @@ export default function MobileNav() {
       )}
 
       {/* Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
-        <div className="mx-4 mb-4">
-          <div className="bg-[#0d1117] border-2 border-[#30363d] rounded-2xl px-2 py-2 flex items-center justify-around relative shadow-[0_-4px_30px_rgba(0,0,0,0.5)]">
+      <nav className="fixed bottom-0 left-0 right-0 z-[9999] md:hidden pb-4 px-4" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+        <div>
+          <div className="bg-[#0d1117] border-2 border-[#30363d] rounded-2xl px-2 py-2 flex items-center justify-around relative shadow-[0_-4px_30px_rgba(0,0,0,0.8)]">
             {/* Left Nav Items */}
             {navItems.slice(0, 2).map((item) => {
               const Icon = item.icon
@@ -179,9 +208,16 @@ export default function MobileNav() {
           </div>
         </div>
       </nav>
+    </>
+  )
 
-      {/* Spacer for content */}
+  // Use portal to render outside DOM hierarchy, fixing fixed positioning issues
+  return (
+    <>
+      {/* Spacer for content - stays in DOM flow */}
       <div className="h-24 md:hidden" />
+      {/* Portal renders nav fixed to body */}
+      {mounted && createPortal(navContent, document.body)}
     </>
   )
 }

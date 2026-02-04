@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Pencil, Trash2, ArrowRight, MessageCircle, Eye, UserPlus, Link2, Copy, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, MessageCircle, Eye, UserPlus, Copy, Check, FolderOpen } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
@@ -23,11 +23,19 @@ interface Client {
   }
 }
 
+interface ViewAsUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
 export default function AgentClientsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
   const agentId = searchParams.get('agentId')
+  const viewAsId = searchParams.get('viewAs')
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -41,13 +49,31 @@ export default function AgentClientsPage() {
   })
   const [showRegisterLink, setShowRegisterLink] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedClientId, setCopiedClientId] = useState<string | null>(null)
   const [newClientPhone, setNewClientPhone] = useState('')
   const [agentName, setAgentName] = useState<string>('')
+  const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
+
+  // Determine if admin is viewing as agent
+  const isViewingAs = !!viewAsId && session?.user?.role === 'ADMIN'
+
+  // Fetch viewAs user info
+  useEffect(() => {
+    if (viewAsId && session?.user?.role === 'ADMIN') {
+      fetch(`/api/users/${viewAsId}`)
+        .then(res => res.json())
+        .then(data => setViewAsUser(data))
+        .catch(console.error)
+    }
+  }, [viewAsId, session])
 
   useEffect(() => {
+    // Wait for session to load before checking role
+    if (status === 'loading') return
+
     if (status === 'unauthenticated') {
       router.push('/login')
-    } else if (session?.user?.role !== 'AGENT' && session?.user?.role !== 'ADMIN') {
+    } else if (status === 'authenticated' && session?.user?.role !== 'AGENT' && session?.user?.role !== 'ADMIN') {
       router.push('/dashboard')
     }
   }, [status, session, router])
@@ -59,6 +85,17 @@ export default function AgentClientsPage() {
         fetchAgentName()
       }
     }
+  }, [session, agentId])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchClients()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session, agentId])
 
   const fetchAgentName = async () => {
@@ -79,11 +116,24 @@ export default function AgentClientsPage() {
         ? `/api/users?role=CLIENT&agentId=${agentId}`
         : '/api/users?role=CLIENT'
       const res = await fetch(url)
+
+      if (!res.ok) {
+        console.error('Failed to fetch clients:', res.status)
+        setClients([])
+        return
+      }
+
       const data = await res.json()
-      setClients(data)
+      // Make sure data is an array before setting it
+      if (Array.isArray(data)) {
+        setClients(data)
+      } else {
+        console.error('Expected array but got:', data)
+        setClients([])
+      }
     } catch (error) {
-      showError('שגיאה בטעינת הלקוחות')
-      console.error(error)
+      console.error('Error fetching clients:', error)
+      setClients([])
     } finally {
       setLoading(false)
     }
@@ -96,13 +146,20 @@ export default function AgentClientsPage() {
       const url = editingClient ? `/api/users/${editingClient.id}` : '/api/users'
       const method = editingClient ? 'PUT' : 'POST'
 
+      // When admin is viewing as agent, pass the agent's ID to associate the client
+      const bodyData: Record<string, unknown> = {
+        ...formData,
+        role: 'CLIENT',
+      }
+      // If admin is viewing as agent, include the agentId so client is associated with that agent
+      if (viewAsId && session?.user?.role === 'ADMIN') {
+        bodyData.agentId = viewAsId
+      }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          role: 'CLIENT',
-        }),
+        body: JSON.stringify(bodyData),
       })
 
       if (!res.ok) {
@@ -214,6 +271,23 @@ export default function AgentClientsPage() {
     setShowRegisterLink(false)
   }
 
+  const getClientLoginLink = (client: Client) => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/login?email=${encodeURIComponent(client.email)}`
+  }
+
+  const copyClientLoginLink = async (client: Client) => {
+    const link = getClientLoginLink(client)
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedClientId(client.id)
+      showSuccess(`קישור הכניסה של ${client.name} הועתק!`)
+      setTimeout(() => setCopiedClientId(null), 2000)
+    } catch {
+      showError('שגיאה בהעתקת הקישור')
+    }
+  }
+
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -238,78 +312,149 @@ export default function AgentClientsPage() {
       key: 'actions',
       header: 'פעולות',
       render: (client: Client) => (
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2">
+          {/* Main action button */}
           <button
             onClick={(e) => {
               e.stopPropagation()
-              router.push(`/client/folders?viewAs=${client.id}`)
+              const url = viewAsId
+                ? `/agent/clients/${client.id}/folders?viewAs=${viewAsId}`
+                : `/agent/clients/${client.id}/folders`
+              router.push(url)
             }}
-            className="p-2 hover:bg-accent/10 rounded-lg transition-all"
-            title="צפה כלקוח"
+            className="h-8 px-3 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap w-full"
           >
-            <Eye size={18} className="text-accent" />
+            <FolderOpen size={14} />
+            צפייה במסמכים שלו
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              sendWhatsApp(client)
-            }}
-            className="p-2 hover:bg-green-500/10 rounded-lg transition-all"
-            title="שלח וואטסאפ"
-          >
-            <MessageCircle size={18} className="text-green-500" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleEdit(client)
-            }}
-            className="p-2 hover:bg-primary/10 rounded-lg transition-all"
-            title="עריכה"
-          >
-            <Pencil size={18} className="text-primary" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDelete(client)
-            }}
-            className="p-2 hover:bg-error/10 rounded-lg transition-all"
-            title="מחיקה"
-          >
-            <Trash2 size={18} className="text-error" />
-          </button>
+          {/* Icon buttons grid */}
+          <div className="grid grid-cols-5 gap-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                copyClientLoginLink(client)
+              }}
+              className="w-7 h-7 flex items-center justify-center hover:bg-blue-500/10 rounded-md transition-all"
+              title="העתק קישור כניסה"
+            >
+              {copiedClientId === client.id ? (
+                <Check size={14} className="text-green-400" />
+              ) : (
+                <Copy size={14} className="text-purple-400" />
+              )}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/client/folders?viewAs=${client.id}`)
+              }}
+              className="w-7 h-7 flex items-center justify-center hover:bg-accent/10 rounded-md transition-all"
+              title="צפה כלקוח"
+            >
+              <Eye size={14} className="text-accent" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                sendWhatsApp(client)
+              }}
+              className="w-7 h-7 flex items-center justify-center hover:bg-green-500/10 rounded-md transition-all"
+              title="שלח וואטסאפ"
+            >
+              <MessageCircle size={14} className="text-green-500" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEdit(client)
+              }}
+              className="w-7 h-7 flex items-center justify-center hover:bg-primary/10 rounded-md transition-all"
+              title="עריכה"
+            >
+              <Pencil size={14} className="text-primary" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete(client)
+              }}
+              className="w-7 h-7 flex items-center justify-center hover:bg-error/10 rounded-md transition-all"
+              title="מחיקה"
+            >
+              <Trash2 size={14} className="text-error" />
+            </button>
+          </div>
         </div>
       ),
     },
   ]
 
+  // Handle back navigation - go to agent dashboard
+  const handleGoBack = () => {
+    // Priority: viewAs > agentId > go back in history
+    const targetAgentId = viewAsId || agentId
+    if (targetAgentId) {
+      router.push(`/dashboard?agentId=${targetAgentId}`)
+    } else {
+      // If no agent context, just go back
+      router.back()
+    }
+  }
+
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen">
-        {/* Header */}
-        <header className="bg-background-card border-b border-primary/20">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+      <div className="min-h-screen relative">
+        {/* Admin Viewing As Banner */}
+        {isViewingAs && viewAsUser && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {viewAsUser.name}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">רק אתם רואים</span>
+              </div>
               <button
-                onClick={() => router.push('/dashboard')}
-                className="p-2 hover:bg-primary/10 rounded-xl transition-all"
+                onClick={() => router.push('/admin/agents')}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
               >
-                <ArrowRight size={24} />
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
               </button>
-              <h1 className="text-2xl font-bold text-primary">
+            </div>
+          </div>
+        )}
+
+        {/* Agent Blue Glow Effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-blue-500/12 rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[150px]" />
+        </div>
+
+        {/* Header */}
+        <header className={`fixed left-0 right-0 z-50 bg-background-card border-b border-primary/20 ${isViewingAs ? 'top-10' : 'top-0'}`}>
+          <div className="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0">
+              <button
+                onClick={handleGoBack}
+                className="p-2 hover:bg-primary/10 rounded-xl transition-all shrink-0"
+              >
+                <ArrowRight size={20} className="md:w-6 md:h-6" />
+              </button>
+              <h1 className="text-lg md:text-2xl font-bold text-primary truncate">
                 {agentId && agentName ? `לקוחות של ${agentName}` : 'ניהול לקוחות'}
               </h1>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2 shrink-0">
               <div className="relative">
                 <button
                   onClick={() => setShowRegisterLink(!showRegisterLink)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg shadow-green-500/30"
+                  className="h-10 px-3 md:px-5 flex items-center justify-center gap-1.5 md:gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs md:text-sm font-medium hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg shadow-green-500/30"
                 >
-                  <UserPlus size={20} />
-                  <span>שלח קישור הרשמה ללקוח</span>
+                  <UserPlus size={18} className="shrink-0" />
+                  <span className="hidden sm:inline">שלח קישור הרשמה ללקוח</span>
+                  <span className="sm:hidden">קישור</span>
                 </button>
 
                 {/* Registration Link Popup */}
@@ -396,16 +541,20 @@ export default function AgentClientsPage() {
                 )}
               </div>
 
-              <Button variant="accent" onClick={openNewModal}>
-                <Plus size={20} className="ml-2" />
-                הוסף לקוח
-              </Button>
+              <button
+                onClick={openNewModal}
+                className="h-10 px-3 md:px-5 flex items-center justify-center gap-1.5 md:gap-2 rounded-xl bg-accent hover:bg-accent/80 text-white text-xs md:text-sm font-medium transition-all"
+              >
+                <Plus size={18} className="shrink-0" />
+                <span className="hidden sm:inline">הוסף לקוח</span>
+                <span className="sm:hidden">הוסף</span>
+              </button>
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="max-w-7xl mx-auto px-4 py-8">
+        <main className={`max-w-7xl mx-auto px-4 py-8 ${isViewingAs ? 'pt-40' : 'pt-28'}`}>
           <Table
             data={clients}
             columns={columns}

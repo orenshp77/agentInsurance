@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { Upload, X, Check, RotateCcw, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react'
@@ -12,6 +12,11 @@ interface ImageCropperProps {
   maxWidth?: number
   maxHeight?: number
   maxFileSizeMB?: number
+}
+
+export interface ImageCropperRef {
+  triggerCrop: () => Promise<File | null>
+  hasPendingImage: () => boolean
 }
 
 const MAX_FILE_SIZE_MB = 800 // 800MB limit
@@ -36,14 +41,14 @@ function centerAspectCrop(
   )
 }
 
-export default function ImageCropper({
+const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
   onImageCropped,
   aspectRatio = 1,
   circularCrop = true,
   maxWidth = 400,
   maxHeight = 400,
   maxFileSizeMB = MAX_FILE_SIZE_MB,
-}: ImageCropperProps) {
+}, ref) => {
   const [imgSrc, setImgSrc] = useState('')
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
@@ -83,11 +88,11 @@ export default function ImageCropper({
     setCrop(centerAspectCrop(width, height, aspectRatio))
   }, [aspectRatio])
 
-  const getCroppedImg = useCallback(async () => {
+  const getCroppedImg = useCallback(async (): Promise<File | null> => {
     const image = imgRef.current
     const previewCanvas = previewCanvasRef.current
     if (!completedCrop || !image || !previewCanvas) {
-      return
+      return null
     }
 
     const scaleX = image.naturalWidth / image.width
@@ -146,6 +151,8 @@ export default function ImageCropper({
     setCompletedCrop(undefined)
     setScale(1)
     setRotate(0)
+
+    return file
   }, [completedCrop, maxWidth, maxHeight, onImageCropped])
 
   const handleReset = () => {
@@ -158,6 +165,12 @@ export default function ImageCropper({
       inputRef.current.value = ''
     }
   }
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    triggerCrop: getCroppedImg,
+    hasPendingImage: () => !!imgSrc && !!completedCrop,
+  }), [getCroppedImg, imgSrc, completedCrop])
 
   return (
     <div className="w-full">
@@ -288,4 +301,8 @@ export default function ImageCropper({
       )}
     </div>
   )
-}
+})
+
+ImageCropper.displayName = 'ImageCropper'
+
+export default ImageCropper

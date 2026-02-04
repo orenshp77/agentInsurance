@@ -25,10 +25,12 @@ export async function GET(request: NextRequest) {
         include: {
           folder: {
             select: {
+              id: true,
               name: true,
               category: true,
               user: {
                 select: {
+                  id: true,
                   name: true,
                   role: true,
                 }
@@ -37,7 +39,12 @@ export async function GET(request: NextRequest) {
           }
         }
       })
-      return NextResponse.json(files)
+      // Map url to fileUrl for frontend
+      const mappedFiles = files.map(f => ({
+        ...f,
+        fileUrl: f.url,
+      }))
+      return NextResponse.json(mappedFiles)
     }
 
     // For AGENT - get files from their clients' folders
@@ -62,10 +69,12 @@ export async function GET(request: NextRequest) {
           include: {
             folder: {
               select: {
+                id: true,
                 name: true,
                 category: true,
                 user: {
                   select: {
+                    id: true,
                     name: true,
                     role: true,
                   }
@@ -74,7 +83,11 @@ export async function GET(request: NextRequest) {
             }
           }
         })
-        return NextResponse.json(files)
+        const mappedFiles = files.map(f => ({
+          ...f,
+          fileUrl: f.url,
+        }))
+        return NextResponse.json(mappedFiles)
       }
 
       // Get all files for agent's clients
@@ -91,10 +104,12 @@ export async function GET(request: NextRequest) {
         include: {
           folder: {
             select: {
+              id: true,
               name: true,
               category: true,
               user: {
                 select: {
+                  id: true,
                   name: true,
                   role: true,
                 }
@@ -103,7 +118,11 @@ export async function GET(request: NextRequest) {
           }
         }
       })
-      return NextResponse.json(files)
+      const mappedFiles = files.map(f => ({
+        ...f,
+        fileUrl: f.url,
+      }))
+      return NextResponse.json(mappedFiles)
     }
 
     // For CLIENT - get their own files
@@ -118,13 +137,18 @@ export async function GET(request: NextRequest) {
       include: {
         folder: {
           select: {
+            id: true,
             name: true,
             category: true,
           }
         }
       }
     })
-    return NextResponse.json(files)
+    const mappedFiles = files.map(f => ({
+      ...f,
+      fileUrl: f.url,
+    }))
+    return NextResponse.json(mappedFiles)
   } catch (error) {
     console.error('Error fetching files:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -211,7 +235,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Log the activity
+    // Log the activity with file URL and client info
     await prisma.activity.create({
       data: {
         type: 'FILE_UPLOADED',
@@ -222,6 +246,13 @@ export async function POST(request: NextRequest) {
         targetId: savedFile.id,
         targetName: file.name,
         targetType: 'FILE',
+        metadata: JSON.stringify({
+          fileUrl: `/uploads/${fileName}`,
+          folderId: folder.id,
+          folderName: folder.name,
+          clientId: folder.userId,
+          clientName: folder.user.name,
+        }),
       },
     })
 

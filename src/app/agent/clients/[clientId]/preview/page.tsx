@@ -8,7 +8,7 @@ import {
   ChevronLeft, Clock, Eye, Sparkles, TrendingUp,
   Home, User, Circle, LayoutGrid, X, MessageCircle,
   Mail, Phone, BarChart3, Activity, CheckCircle, ArrowRight,
-  Menu, LogOut, List, PhoneCall, Bell
+  Menu, LogOut, List, PhoneCall, Bell, ImageOff, ImageIcon
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
@@ -89,6 +89,7 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [currentBgIndex, setCurrentBgIndex] = useState(0)
+  const [showBackground, setShowBackground] = useState(true)
 
   // Mock notifications data
   const notifications = [
@@ -125,6 +126,17 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
       fetchClient()
       fetchFolders()
     }
+  }, [session, resolvedParams.clientId])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchFolders()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [session, resolvedParams.clientId])
 
   const fetchClient = async () => {
@@ -189,7 +201,36 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-32">
+      <div className="min-h-screen pb-32 relative">
+        {/* Client Landscape Background - Full Screen */}
+        {showBackground && (
+          <div className="fixed inset-0 z-0">
+            {landscapeImages.map((img, index) => (
+              <img
+                key={index}
+                src={img}
+                alt="landscape"
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[2000ms]"
+                style={{ opacity: index === currentBgIndex ? 1 : 0 }}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0d1117]/70 via-[#0d1117]/85 to-[#0d1117]" />
+          </div>
+        )}
+
+        {/* Background Toggle Button */}
+        <button
+          onClick={() => setShowBackground(!showBackground)}
+          className="fixed bottom-24 left-4 z-50 p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all md:bottom-8"
+          title={showBackground ? 'כבה רקע' : 'הפעל רקע'}
+        >
+          {showBackground ? (
+            <ImageOff size={20} className="text-white" />
+          ) : (
+            <ImageIcon size={20} className="text-white" />
+          )}
+        </button>
+
         {/* Fixed Header with Logo, Preview Banner, and Hamburger */}
         <header className="fixed top-0 left-0 right-0 z-50">
           {/* Preview Banner */}
@@ -391,27 +432,6 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
 
         {/* Hero Section - with top padding for fixed header */}
         <div className="relative overflow-hidden pt-28">
-          {/* Landscape Background with Transition */}
-          <div className="absolute inset-0">
-            {landscapeImages.map((img, index) => (
-              <div
-                key={index}
-                className="absolute inset-0 transition-opacity duration-[2000ms]"
-                style={{
-                  backgroundImage: `url(${img})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  opacity: index === currentBgIndex ? 0.15 : 0,
-                }}
-              />
-            ))}
-            {/* Dark overlay */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/80 via-[#0d1117]/90 to-[#0d1117]" />
-            {/* Glow effects */}
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4" />
-            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-accent/20 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/4" />
-          </div>
-
           <div className="relative max-w-7xl mx-auto px-4 py-10 md:py-16">
             {/* Welcome Section */}
             <div className="text-center mb-10 animate-fade-in-up">

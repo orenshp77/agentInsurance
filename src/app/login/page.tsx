@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Mail, ArrowLeft, RefreshCw, Mountain } from 'lucide-react'
 import { showError } from '@/lib/swal'
 
@@ -62,9 +62,12 @@ const generateStars = (count: number) => {
   }))
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const searchParams = useSearchParams()
+  const emailFromUrl = searchParams.get('email') || ''
+
+  const [email, setEmail] = useState(emailFromUrl)
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [currentBg, setCurrentBg] = useState(0)
@@ -317,5 +320,17 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

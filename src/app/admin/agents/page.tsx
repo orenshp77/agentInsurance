@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, ArrowRight, Menu, Bell, LogOut, Home, Users, Settings, LogIn } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, Menu, Bell, LogOut, Home, Users, Settings, LogIn, Eye, Copy, AlertTriangle, Image } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -12,16 +12,33 @@ import Table from '@/components/ui/Table'
 import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
 import { showSuccess, showError, showConfirm } from '@/lib/swal'
+import ImageCropper, { ImageCropperRef } from '@/components/ui/ImageCropper'
 
 interface Agent {
   id: string
   email: string
   name: string
   phone: string | null
+  idNumber: string | null
   role: string
   createdAt: string
+  logoUrl?: string | null
   _count: {
     clients: number
+  }
+}
+
+interface Client {
+  id: string
+  email: string
+  name: string
+  phone: string | null
+  idNumber: string | null
+  role: string
+  createdAt: string
+  agent?: {
+    id: string
+    name: string
   }
 }
 
@@ -29,7 +46,9 @@ export default function AdminAgentsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [agents, setAgents] = useState<Agent[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'agents' | 'clients'>('agents')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
   const [formData, setFormData] = useState({
@@ -37,21 +56,55 @@ export default function AdminAgentsPage() {
     password: '',
     name: '',
     phone: '',
+    idNumber: '',
   })
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null)
+  const imageCropperRef = useRef<ImageCropperRef>(null)
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [orphanedClientsCount, setOrphanedClientsCount] = useState(0)
 
   useEffect(() => {
+    // Wait for session to load before checking role
+    if (status === 'loading') return
+
     if (status === 'unauthenticated') {
       router.push('/login')
-    } else if (session?.user?.role !== 'ADMIN') {
+    } else if (status === 'authenticated' && session?.user?.role !== 'ADMIN') {
       router.push('/dashboard')
     }
   }, [status, session, router])
 
   useEffect(() => {
     fetchAgents()
+    fetchClients()
+    fetchOrphanedClientsCount()
   }, [])
+
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAgents()
+      fetchClients()
+      fetchOrphanedClientsCount()
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const fetchOrphanedClientsCount = async () => {
+    try {
+      const res = await fetch('/api/orphaned-clients')
+      if (res.ok) {
+        const data = await res.json()
+        setOrphanedClientsCount(data.totalCount || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching orphaned clients:', error)
+    }
+  }
 
   const fetchAgents = async () => {
     try {
@@ -66,10 +119,64 @@ export default function AdminAgentsPage() {
     }
   }
 
+  const fetchClients = async () => {
+    try {
+      const res = await fetch('/api/users?role=CLIENT')
+      const data = await res.json()
+      setClients(data)
+    } catch (error) {
+      showError('שגיאה בטעינת הלקוחות')
+      console.error(error)
+    }
+  }
+
+  const handleImageCropped = (croppedImageUrl: string, file: File) => {
+    setLogoPreview(croppedImageUrl)
+    setLogoFile(file)
+    setExistingLogoUrl(null)
+  }
+
+  const handleRemoveLogo = () => {
+    setLogoPreview(null)
+    setLogoFile(null)
+    setExistingLogoUrl(null)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     try {
+      // Check if there's a pending image in the cropper and crop it first
+      let fileToUpload = logoFile
+      if (imageCropperRef.current?.hasPendingImage()) {
+        const croppedFile = await imageCropperRef.current.triggerCrop()
+        if (croppedFile) {
+          fileToUpload = croppedFile
+        }
+      }
+
+      // Upload the logo if exists
+      let logoUrl = existingLogoUrl
+      if (fileToUpload) {
+        const logoFormData = new FormData()
+        logoFormData.append('file', fileToUpload)
+        logoFormData.append('type', 'logo')
+        // When editing an agent, send the agent's ID so the logo is saved to the agent's record
+        if (editingAgent) {
+          logoFormData.append('userId', editingAgent.id)
+        }
+
+        const uploadRes = await fetch('/api/upload-logo', {
+          method: 'POST',
+          body: logoFormData,
+        })
+
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json()
+          logoUrl = uploadData.url
+        }
+      }
+
       const url = editingAgent ? `/api/users/${editingAgent.id}` : '/api/users'
       const method = editingAgent ? 'PUT' : 'POST'
 
@@ -79,6 +186,7 @@ export default function AdminAgentsPage() {
         body: JSON.stringify({
           ...formData,
           role: 'AGENT',
+          logoUrl,
         }),
       })
 
@@ -97,10 +205,14 @@ export default function AdminAgentsPage() {
   }
 
   const handleDelete = async (agent: Agent) => {
-    const confirmed = await showConfirm(
-      'מחיקת סוכן',
-      `האם אתה בטוח שברצונך למחוק את ${agent.name}?`
-    )
+    const clientCount = agent._count?.clients || 0
+    let confirmMessage = `האם אתה בטוח שברצונך למחוק את ${agent.name}?`
+
+    if (clientCount > 0) {
+      confirmMessage = `לסוכן ${agent.name} יש ${clientCount} לקוחות.\n\nאם תמחק את הסוכן, הלקוחות יועברו ל"לקוחות ממתינים לשיוך" ותוכל לשייך אותם לסוכן אחר או למחוק אותם.`
+    }
+
+    const confirmed = await showConfirm('מחיקת סוכן', confirmMessage)
 
     if (!confirmed) return
 
@@ -113,10 +225,43 @@ export default function AdminAgentsPage() {
         throw new Error('שגיאה במחיקה')
       }
 
-      showSuccess('הסוכן נמחק בהצלחה')
+      const data = await res.json()
+
+      if (data.orphanedClients > 0) {
+        showSuccess(`הסוכן נמחק. ${data.orphanedClients} לקוחות הועברו לרשימת הממתינים.`)
+        fetchOrphanedClientsCount()
+      } else {
+        showSuccess('הסוכן נמחק בהצלחה')
+      }
+
       fetchAgents()
     } catch (error) {
       showError('שגיאה במחיקת הסוכן')
+      console.error(error)
+    }
+  }
+
+  const handleDeleteClient = async (client: Client) => {
+    const confirmed = await showConfirm(
+      'מחיקת לקוח',
+      `האם אתה בטוח שברצונך למחוק את ${client.name}?`
+    )
+
+    if (!confirmed) return
+
+    try {
+      const res = await fetch(`/api/users/${client.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!res.ok) {
+        throw new Error('שגיאה במחיקה')
+      }
+
+      showSuccess('הלקוח נמחק בהצלחה')
+      fetchClients()
+    } catch (error) {
+      showError('שגיאה במחיקת הלקוח')
       console.error(error)
     }
   }
@@ -128,13 +273,20 @@ export default function AdminAgentsPage() {
       password: '',
       name: agent.name,
       phone: agent.phone || '',
+      idNumber: agent.idNumber || '',
     })
+    setLogoPreview(null)
+    setLogoFile(null)
+    setExistingLogoUrl(agent.logoUrl || null)
     setIsModalOpen(true)
   }
 
   const resetForm = () => {
     setEditingAgent(null)
-    setFormData({ email: '', password: '', name: '', phone: '' })
+    setFormData({ email: '', password: '', name: '', phone: '', idNumber: '' })
+    setLogoPreview(null)
+    setLogoFile(null)
+    setExistingLogoUrl(null)
   }
 
   const openNewModal = () => {
@@ -169,12 +321,24 @@ export default function AdminAgentsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              router.push(`/admin/agent-view/${agent.id}`)
+              router.push(`/dashboard?viewAs=${agent.id}`)
             }}
             className="p-2 hover:bg-emerald-500/10 rounded-lg transition-all"
-            title="צפה בעמוד הסוכן"
+            title="צפה כסוכן"
           >
             <LogIn size={18} className="text-emerald-400" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              const url = `${window.location.origin}/dashboard`
+              navigator.clipboard.writeText(url)
+              showSuccess('הקישור הועתק')
+            }}
+            className="p-2 hover:bg-purple-500/10 rounded-lg transition-all"
+            title="העתק קישור"
+          >
+            <Copy size={18} className="text-purple-400" />
           </button>
           <button
             onClick={(e) => {
@@ -190,6 +354,48 @@ export default function AdminAgentsPage() {
             onClick={(e) => {
               e.stopPropagation()
               handleDelete(agent)
+            }}
+            className="p-2 hover:bg-error/10 rounded-lg transition-all"
+            title="מחיקה"
+          >
+            <Trash2 size={18} className="text-error" />
+          </button>
+        </div>
+      ),
+    },
+  ]
+
+  const clientColumns = [
+    { key: 'name', header: 'שם' },
+    { key: 'email', header: 'אימייל' },
+    { key: 'phone', header: 'טלפון', render: (client: Client) => client.phone || '-' },
+    { key: 'idNumber', header: 'ת.ז', render: (client: Client) => client.idNumber || '-' },
+    {
+      key: 'agent',
+      header: 'סוכן',
+      render: (client: Client) => (
+        <span className="text-blue-400 font-medium">{client.agent?.name || '-'}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'פעולות',
+      render: (client: Client) => (
+        <div className="flex gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/client/folders?viewAs=${client.id}`)
+            }}
+            className="p-2 hover:bg-blue-500/10 rounded-lg transition-all"
+            title="צפה כלקוח"
+          >
+            <Eye size={18} className="text-blue-400" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDeleteClient(client)
             }}
             className="p-2 hover:bg-error/10 rounded-lg transition-all"
             title="מחיקה"
@@ -227,26 +433,44 @@ export default function AdminAgentsPage() {
                   />
                 </div>
                 <div className="hidden sm:block">
-                  <h1 className="text-lg font-bold text-emerald-400">ניהול סוכנים</h1>
+                  <h1 className="text-lg font-bold text-emerald-400">ניהול משתמשים</h1>
                   <p className="text-xs text-foreground-muted">פאנל מנהל</p>
                 </div>
               </div>
 
               {/* Right Side Controls */}
               <div className="flex items-center gap-3">
-                {/* Add Agent Button - Desktop */}
-                <Button variant="accent" onClick={openNewModal} className="hidden sm:flex">
-                  <Plus size={20} className="ml-2" />
-                  הוסף סוכן
-                </Button>
+                {/* Add Agent Button - Desktop (only show on agents tab) */}
+                {activeTab === 'agents' && (
+                  <Button variant="accent" onClick={openNewModal} className="hidden sm:flex">
+                    <Plus size={20} className="ml-2" />
+                    הוסף סוכן
+                  </Button>
+                )}
 
-                {/* Add Agent Button - Mobile */}
-                <button
-                  onClick={openNewModal}
-                  className="sm:hidden p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all"
-                >
-                  <Plus size={20} className="text-emerald-400" />
-                </button>
+                {/* Add Agent Button - Mobile (only show on agents tab) */}
+                {activeTab === 'agents' && (
+                  <button
+                    onClick={openNewModal}
+                    className="sm:hidden p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 transition-all"
+                  >
+                    <Plus size={20} className="text-emerald-400" />
+                  </button>
+                )}
+
+                {/* Orphaned Clients Button */}
+                {orphanedClientsCount > 0 && (
+                  <button
+                    onClick={() => router.push('/admin/orphaned-clients')}
+                    className="relative p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 transition-all"
+                    title="לקוחות ממתינים לשיוך"
+                  >
+                    <AlertTriangle size={20} className="text-amber-400" />
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center text-xs text-black font-bold">
+                      {orphanedClientsCount}
+                    </span>
+                  </button>
+                )}
 
                 {/* Notifications Bell */}
                 <div className="relative">
@@ -371,11 +595,49 @@ export default function AdminAgentsPage() {
 
         {/* Content */}
         <main className="max-w-7xl mx-auto px-4 pt-24 pb-32 md:pb-8 relative z-10">
-          <Table
-            data={agents}
-            columns={columns}
-            emptyMessage="אין סוכנים במערכת"
-          />
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6">
+            <button
+              onClick={() => setActiveTab('agents')}
+              className={`px-6 py-3 rounded-xl font-medium transition-all ${
+                activeTab === 'agents'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-white/5 text-foreground-muted hover:bg-white/10'
+              }`}
+            >
+              <Users size={18} className="inline ml-2" />
+              סוכנים ({agents.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('clients')}
+              className={`px-6 py-3 rounded-xl font-medium transition-all ${
+                activeTab === 'clients'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white/5 text-foreground-muted hover:bg-white/10'
+              }`}
+            >
+              <Users size={18} className="inline ml-2" />
+              לקוחות ({clients.length})
+            </button>
+          </div>
+
+          {/* Agents Table */}
+          {activeTab === 'agents' && (
+            <Table
+              data={agents}
+              columns={columns}
+              emptyMessage="אין סוכנים במערכת"
+            />
+          )}
+
+          {/* Clients Table */}
+          {activeTab === 'clients' && (
+            <Table
+              data={clients}
+              columns={clientColumns}
+              emptyMessage="אין לקוחות במערכת"
+            />
+          )}
         </main>
 
         {/* Modal */}
@@ -385,6 +647,48 @@ export default function AdminAgentsPage() {
           title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'}
         >
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Logo Upload */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-foreground-muted flex items-center gap-2">
+                <Image size={16} />
+                לוגו (אופציונלי)
+              </label>
+
+              {logoPreview || existingLogoUrl ? (
+                <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
+                    <img
+                      src={logoPreview || existingLogoUrl || ''}
+                      alt="לוגו"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-foreground-muted mb-2">
+                      {logoPreview ? 'הלוגו הועלה בהצלחה' : 'לוגו קיים'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      הסר לוגו
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <ImageCropper
+                  ref={imageCropperRef}
+                  onImageCropped={handleImageCropped}
+                  aspectRatio={1}
+                  circularCrop={true}
+                  maxWidth={400}
+                  maxHeight={400}
+                />
+              )}
+            </div>
+
             <Input
               label="שם מלא"
               value={formData.name}
@@ -411,6 +715,12 @@ export default function AdminAgentsPage() {
               label="טלפון"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              dir="ltr"
+            />
+            <Input
+              label="תעודת זהות"
+              value={formData.idNumber}
+              onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
               dir="ltr"
             />
 

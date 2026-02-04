@@ -7,6 +7,7 @@ declare module 'next-auth' {
       role: string
       logoUrl?: string
       agentId?: string
+      profileCompleted?: boolean
     } & DefaultSession['user']
   }
 }

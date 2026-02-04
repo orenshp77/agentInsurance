@@ -2,11 +2,11 @@
 
 import { useState, useEffect, use, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight, Shield, Wallet, Car, Upload, Search,
   Menu, Bell, LogOut, User, Settings, X, CloudUpload,
-  Check, FileText, Image, File, Mail, Phone, FolderPlus
+  Check, FileText, Image, File, Mail, Phone, FolderPlus, Eye
 } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { showSuccess, showError } from '@/lib/swal'
@@ -66,6 +66,8 @@ export default function CategoryUploadPage({
   const resolvedParams = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsId = searchParams.get('viewAs')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [clients, setClients] = useState<Client[]>([])
@@ -86,9 +88,12 @@ export default function CategoryUploadPage({
   ]
 
   useEffect(() => {
+    // Wait for session to load before checking role
+    if (status === 'loading') return
+
     if (status === 'unauthenticated') {
       router.push('/login')
-    } else if (session?.user?.role !== 'AGENT' && session?.user?.role !== 'ADMIN') {
+    } else if (status === 'authenticated' && session?.user?.role !== 'AGENT' && session?.user?.role !== 'ADMIN') {
       router.push('/dashboard')
     }
   }, [status, session, router])
@@ -270,7 +275,14 @@ export default function CategoryUploadPage({
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 relative">
+        {/* Agent Blue Glow Effects */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-blue-500/12 rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[150px]" />
+        </div>
+
         {/* Header */}
         <header className="fixed top-0 left-0 right-0 z-50 bg-background-card/80 backdrop-blur-xl border-b border-primary/10">
           <div className="max-w-7xl mx-auto px-4 py-3">
@@ -384,11 +396,11 @@ export default function CategoryUploadPage({
             {/* Back Button & Title */}
             <div className="mb-8">
               <button
-                onClick={() => router.push('/dashboard')}
+                onClick={() => router.push(viewAsId ? `/agent/clients?viewAs=${viewAsId}` : '/agent/clients')}
                 className="flex items-center gap-2 text-foreground-muted hover:text-primary transition-all mb-4 group"
               >
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                <span>חזרה ללוח בקרה</span>
+                <span>חזרה לניהול לקוחות</span>
               </button>
 
               <div className="flex items-center gap-4">
@@ -439,14 +451,16 @@ export default function CategoryUploadPage({
                     filteredClients.map((client) => (
                       <div
                         key={client.id}
-                        onClick={() => setSelectedClient(client)}
-                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                        className={`p-4 rounded-2xl border-2 transition-all ${
                           selectedClient?.id === client.id
                             ? `${config.border} bg-gradient-to-r ${config.bgGradient}`
                             : 'border-transparent bg-white/5 hover:bg-white/10'
                         }`}
                       >
-                        <div className="flex items-center gap-4">
+                        <div
+                          onClick={() => setSelectedClient(client)}
+                          className="flex items-center gap-4 cursor-pointer"
+                        >
                           <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold ${
                             selectedClient?.id === client.id ? config.iconBg : 'bg-gradient-to-br from-gray-600 to-gray-700'
                           }`}>
@@ -473,6 +487,21 @@ export default function CategoryUploadPage({
                             </div>
                           )}
                         </div>
+                        {/* View Client Folder Button - appears when selected */}
+                        {selectedClient?.id === client.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(viewAsId
+                                ? `/agent/clients/${client.id}/folders?viewAs=${viewAsId}`
+                                : `/agent/clients/${client.id}/folders`)
+                            }}
+                            className={`mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl ${config.iconBg} text-white font-medium transition-all hover:opacity-90`}
+                          >
+                            <Eye size={18} />
+                            <span>צפייה במסמכי תיק לקוח</span>
+                          </button>
+                        )}
                       </div>
                     ))
                   )}

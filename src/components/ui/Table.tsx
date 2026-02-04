@@ -17,7 +17,8 @@ export default function Table<T extends { id: string }>({
   onRowClick,
   emptyMessage = 'אין נתונים להצגה',
 }: TableProps<T>) {
-  if (data.length === 0) {
+  // Safety check - ensure data is an array
+  if (!Array.isArray(data) || data.length === 0) {
     return (
       <div className="bg-background-card rounded-2xl p-8 text-center text-foreground-muted">
         {emptyMessage}

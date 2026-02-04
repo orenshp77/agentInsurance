@@ -2,11 +2,11 @@
 
 import { useState, useEffect, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight, FileText, Image, File, Download, Mail, MessageCircle,
   Eye, Shield, Wallet, Car, Clock, Files, Phone, Sparkles, ChevronLeft,
-  Menu, Bell, LogOut, Home, FolderOpen, Settings, PhoneCall
+  Menu, Bell, LogOut, Home, FolderOpen, Settings, PhoneCall, ImageOff, ImageIcon
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
@@ -94,6 +94,13 @@ const getFileColor = (fileType: string) => {
   }
 }
 
+interface ViewAsUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
 export default function ClientFolderFilesPage({
   params,
 }: {
@@ -102,10 +109,27 @@ export default function ClientFolderFilesPage({
   const resolvedParams = use(params)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewAsClientId = searchParams.get('viewAs')
   const [folder, setFolder] = useState<Folder | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [showBackground, setShowBackground] = useState(true)
+  const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
+
+  // Determine if agent/admin is viewing as client
+  const isViewingAs = !!viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN')
+
+  // Fetch viewAs user info
+  useEffect(() => {
+    if (viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN')) {
+      fetch(`/api/users/${viewAsClientId}`)
+        .then(res => res.json())
+        .then(data => setViewAsUser(data))
+        .catch(console.error)
+    }
+  }, [viewAsClientId, session])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -119,6 +143,17 @@ export default function ClientFolderFilesPage({
     }
   }, [session, resolvedParams.folderId])
 
+  // Auto-refresh data every 5 seconds
+  useEffect(() => {
+    if (!session?.user) return
+
+    const interval = setInterval(() => {
+      fetchFolder()
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [session, resolvedParams.folderId])
+
   const fetchFolder = async () => {
     try {
       const res = await fetch(`/api/folders/${resolvedParams.folderId}`)
@@ -130,7 +165,7 @@ export default function ClientFolderFilesPage({
     } catch (error) {
       showError('שגיאה בטעינת התיקייה')
       console.error(error)
-      router.push('/client/folders')
+      router.push(`/client/folders${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)
     } finally {
       setLoading(false)
     }
@@ -167,7 +202,7 @@ export default function ClientFolderFilesPage({
             </div>
             <h2 className="text-xl font-bold text-error mb-2">התיקייה לא נמצאה</h2>
             <button
-              onClick={() => router.push('/client/folders')}
+              onClick={() => router.push(`/client/folders${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)}
               className="mt-4 px-6 py-2 rounded-xl bg-primary text-white"
             >
               חזור לתיקיות
@@ -183,13 +218,58 @@ export default function ClientFolderFilesPage({
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-24 md:pb-8">
+      <div className="min-h-screen pb-24 md:pb-8 relative overflow-hidden">
+        {/* Client Landscape Background */}
+        {showBackground && (
+          <div className="fixed inset-0 z-0">
+            <img
+              src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80"
+              alt="landscape"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0d1117]/80 via-[#0d1117]/90 to-[#0d1117]" />
+          </div>
+        )}
+
+        {/* Background Toggle Button */}
+        <button
+          onClick={() => setShowBackground(!showBackground)}
+          className="fixed bottom-24 left-4 z-50 p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all md:bottom-8"
+          title={showBackground ? 'כבה רקע' : 'הפעל רקע'}
+        >
+          {showBackground ? (
+            <ImageOff size={20} className="text-white" />
+          ) : (
+            <ImageIcon size={20} className="text-white" />
+          )}
+        </button>
+
+        {/* Agent/Admin Viewing As Banner */}
+        {isViewingAs && viewAsUser && (
+          <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-amber-500 to-orange-500 py-1 md:py-2 px-3 md:px-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-4 text-black font-medium text-xs md:text-base min-w-0">
+                <Eye size={14} className="shrink-0 md:w-[18px] md:h-[18px]" />
+                <span className="truncate">צופים: {viewAsUser.name}</span>
+                <span className="text-xs bg-black/20 px-3 py-1 rounded-full hidden md:inline-block">את הפס הכתום רק אתם רואים</span>
+              </div>
+              <button
+                onClick={() => router.push(session?.user?.role === 'ADMIN' ? '/admin/agents' : '/agent/clients')}
+                className="flex items-center gap-1 md:gap-2 px-2.5 md:px-4 py-1 md:py-2 rounded-full bg-black/20 hover:bg-black/30 text-black font-medium transition-all text-xs md:text-sm shrink-0"
+              >
+                <ArrowRight size={12} className="md:w-4 md:h-4" />
+                <span>חזור</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Fixed Header with Hamburger Menu */}
-        <header className="fixed top-0 left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5">
+        <header className={`fixed left-0 right-0 z-50 bg-[#0d1117]/90 backdrop-blur-md border-b border-white/5 ${isViewingAs ? 'top-10' : 'top-0'}`}>
           <div className="max-w-7xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               {/* Logo */}
-              <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/client/folders')}>
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push(`/client/folders${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)}>
                 <div className="w-12 h-12">
                   <img
                     src="/uploads/logo-finance.png"
@@ -272,7 +352,7 @@ export default function ClientFolderFilesPage({
                         {/* Menu Items */}
                         <button
                           onClick={() => {
-                            router.push('/dashboard')
+                            router.push(viewAsClientId ? `/client/folders?viewAs=${viewAsClientId}` : '/dashboard')
                             setShowMenu(false)
                           }}
                           className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-all text-right"
@@ -285,7 +365,7 @@ export default function ClientFolderFilesPage({
 
                         <button
                           onClick={() => {
-                            router.push('/client/folders')
+                            router.push(`/client/folders${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)
                             setShowMenu(false)
                           }}
                           className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-all text-right"
@@ -327,7 +407,7 @@ export default function ClientFolderFilesPage({
         </header>
 
         {/* Hero Header */}
-        <div className="relative overflow-hidden pt-16">
+        <div className={`relative overflow-hidden ${isViewingAs ? 'pt-24' : 'pt-16'}`}>
           {/* Background */}
           <div className={`absolute inset-0 bg-gradient-to-br ${config.bgGradient}`} />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
@@ -335,7 +415,7 @@ export default function ClientFolderFilesPage({
           <div className="relative max-w-7xl mx-auto px-4 py-6 md:py-10">
             {/* Back Button */}
             <button
-              onClick={() => router.push('/client/folders')}
+              onClick={() => router.push(`/client/folders${viewAsClientId ? `?viewAs=${viewAsClientId}` : ''}`)}
               className="flex items-center gap-2 text-foreground-muted hover:text-foreground mb-6 transition-colors group"
             >
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />

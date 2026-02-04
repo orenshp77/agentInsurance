@@ -82,7 +82,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { email, password, name, phone, idNumber } = body
+    const { email, password, name, phone, idNumber, logoUrl } = body
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
@@ -97,8 +97,13 @@ export async function PUT(
     if (session.user.role === 'ADMIN') {
       // Admin can update any user
     } else if (session.user.role === 'AGENT') {
-      // Agent can only update their clients
-      if (existingUser.agentId !== session.user.id) {
+      // Agent can update themselves or their clients
+      if (existingUser.id !== session.user.id && existingUser.agentId !== session.user.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (session.user.role === 'CLIENT') {
+      // Client can only update themselves
+      if (existingUser.id !== session.user.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     } else {
@@ -112,6 +117,7 @@ export async function PUT(
     if (phone !== undefined) updateData.phone = phone
     if (idNumber !== undefined) updateData.idNumber = idNumber
     if (password) updateData.password = await bcrypt.hash(password, 10)
+    if (logoUrl !== undefined) updateData.logoUrl = logoUrl
 
     const user = await prisma.user.update({
       where: { id },
@@ -147,9 +153,13 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Check if user exists
+    // Check if user exists with their clients count
     const existingUser = await prisma.user.findUnique({
       where: { id },
+      include: {
+        clients: true,
+        folders: true,
+      },
     })
 
     if (!existingUser) {
@@ -174,11 +184,35 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // If deleting an agent with clients, orphan the clients instead of deleting them
+    if (existingUser.role === 'AGENT' && existingUser.clients.length > 0) {
+      // Update all clients to be orphaned
+      await prisma.user.updateMany({
+        where: { agentId: id },
+        data: {
+          agentId: null,
+          formerAgentName: existingUser.name,
+        },
+      })
+    }
+
+    // Delete the user's folders and files first (if any)
+    if (existingUser.folders.length > 0) {
+      for (const folder of existingUser.folders) {
+        await prisma.file.deleteMany({ where: { folderId: folder.id } })
+      }
+      await prisma.folder.deleteMany({ where: { userId: id } })
+    }
+
+    // Delete the user
     await prisma.user.delete({
       where: { id },
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      orphanedClients: existingUser.role === 'AGENT' ? existingUser.clients.length : 0,
+    })
   } catch (error) {
     console.error('Error deleting user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
