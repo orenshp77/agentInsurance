@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, password, phone, idNumber, agentId, role, logoUrl } = body
+    const { name, email, password, phone, idNumber, agentId } = body
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // SECURITY: Only allow CLIENT role for self-registration
+    // ADMIN and AGENT roles can only be created by authenticated admins via /api/users
+    const safeRole = 'CLIENT'
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -52,22 +56,21 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         phone: phone || null,
         idNumber: idNumber || null,
-        role: role || 'CLIENT',
+        role: safeRole,
         agentId: agentId || null,
-        logoUrl: logoUrl || null,
+        logoUrl: null, // Logos only for agents, set via admin panel
       },
     })
 
     // Log the registration activity
-    const userRole = role || 'CLIENT'
-    const roleLabel = userRole === 'AGENT' ? 'סוכן' : userRole === 'ADMIN' ? 'מנהל' : 'לקוח'
+    const roleLabel = 'לקוח' // Self-registration is always CLIENT
     await prisma.activity.create({
       data: {
         type: 'USER_REGISTERED',
         description: `${roleLabel} חדש נרשם למערכת: ${name}`,
         userId: user.id,
         userName: name,
-        userRole: userRole,
+        userRole: safeRole,
         targetId: user.id,
         targetName: name,
         targetType: 'USER',

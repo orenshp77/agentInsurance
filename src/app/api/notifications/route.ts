@@ -64,6 +64,21 @@ export async function POST(req: Request) {
       )
     }
 
+    // SECURITY: Validate that the agent has permission to notify this user
+    if (session.user.role === 'AGENT') {
+      // Agent can only notify their own clients
+      const client = await prisma.user.findFirst({
+        where: { id: userId, agentId: session.user.id },
+      })
+      if (!client) {
+        return NextResponse.json(
+          { error: 'אין הרשאה לשלוח התראה למשתמש זה' },
+          { status: 403 }
+        )
+      }
+    }
+    // ADMIN can notify anyone - no additional check needed
+
     const notification = await prisma.notification.create({
       data: {
         userId,
