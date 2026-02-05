@@ -61,7 +61,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id
         token.role = (user as { role: string }).role
@@ -69,6 +69,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.agentId = (user as { agentId?: string }).agentId
         token.profileCompleted = (user as { profileCompleted?: boolean }).profileCompleted
       }
+
+      // When session is updated (e.g., after profile completion), refetch user data
+      if (trigger === 'update' && token.id) {
+        const freshUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            profileCompleted: true,
+            logoUrl: true,
+            role: true,
+            agentId: true,
+          },
+        })
+        if (freshUser) {
+          token.profileCompleted = freshUser.profileCompleted
+          token.logoUrl = freshUser.logoUrl
+          token.role = freshUser.role
+          token.agentId = freshUser.agentId
+        }
+      }
+
       return token
     },
     async session({ session, token }) {

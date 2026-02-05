@@ -83,13 +83,13 @@ export default function AdminAgentsPage() {
     fetchOrphanedClientsCount()
   }, [])
 
-  // Auto-refresh data every 5 seconds
+  // Auto-refresh data every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAgents()
       fetchClients()
       fetchOrphanedClientsCount()
-    }, 5000)
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [])
@@ -110,7 +110,8 @@ export default function AdminAgentsPage() {
     try {
       const res = await fetch('/api/users?role=AGENT')
       const data = await res.json()
-      setAgents(data)
+      // Handle both old array format and new paginated format
+      setAgents(Array.isArray(data) ? data : data.users || [])
     } catch (error) {
       showError('שגיאה בטעינת הסוכנים')
       console.error(error)
@@ -123,7 +124,8 @@ export default function AdminAgentsPage() {
     try {
       const res = await fetch('/api/users?role=CLIENT')
       const data = await res.json()
-      setClients(data)
+      // Handle both old array format and new paginated format
+      setClients(Array.isArray(data) ? data : data.users || [])
     } catch (error) {
       showError('שגיאה בטעינת הלקוחות')
       console.error(error)

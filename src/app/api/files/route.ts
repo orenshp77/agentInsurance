@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
+import { uploadToGCS } from '@/lib/gcs'
 
 // GET - Get recent files
 export async function GET(request: NextRequest) {
@@ -168,12 +168,16 @@ export async function GET(request: NextRequest) {
 // POST - Upload file
 export async function POST(request: NextRequest) {
   try {
+    console.log('=== FILE UPLOAD START ===')
     const session = await auth()
     if (!session?.user) {
+      console.log('Upload failed: Unauthorized')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.log('User:', session.user.email, 'Role:', session.user.role)
 
     if (session.user.role === 'CLIENT') {
+      console.log('Upload failed: Client role forbidden')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -182,7 +186,11 @@ export async function POST(request: NextRequest) {
     const folderId = formData.get('folderId') as string
     const notes = formData.get('notes') as string | null
 
+    console.log('File received:', file?.name, 'Size:', file?.size, 'Type:', file?.type)
+    console.log('FolderId:', folderId)
+
     if (!file || !folderId) {
+      console.log('Upload failed: Missing file or folderId')
       return NextResponse.json(
         { error: 'File and folderId are required' },
         { status: 400 }
@@ -192,6 +200,7 @@ export async function POST(request: NextRequest) {
     // Validate file type
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
     if (!allowedTypes.includes(file.type)) {
+      console.log('Upload failed: Invalid file type:', file.type)
       return NextResponse.json(
         { error: 'Only PDF, PNG, and JPG files are allowed' },
         { status: 400 }
@@ -216,20 +225,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
-    await mkdir(uploadsDir, { recursive: true })
-
-    // Generate unique filename
+    // Generate unique filename for GCS
     const timestamp = Date.now()
     const ext = path.extname(file.name)
-    const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}${ext}`
-    const filePath = path.join(uploadsDir, fileName)
+    const fileName = `files/${timestamp}-${Math.random().toString(36).substring(7)}${ext}`
 
-    // Write file
+    // Convert file to buffer and upload to GCS
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
+    console.log('Buffer size:', buffer.length)
+
+    console.log('Uploading file to GCS:', fileName)
+    const url = await uploadToGCS(buffer, fileName, file.type)
+    console.log('File uploaded successfully:', url)
 
     // Get file type
     const fileType = ext.replace('.', '').toUpperCase()
@@ -237,7 +245,7 @@ export async function POST(request: NextRequest) {
     // Save to database
     const savedFile = await prisma.file.create({
       data: {
-        url: `/uploads/${fileName}`,
+        url,
         fileType,
         fileName: file.name,
         notes,
@@ -257,7 +265,7 @@ export async function POST(request: NextRequest) {
         targetName: file.name,
         targetType: 'FILE',
         metadata: JSON.stringify({
-          fileUrl: `/uploads/${fileName}`,
+          fileUrl: url,
           folderId: folder.id,
           folderName: folder.name,
           clientId: folder.userId,

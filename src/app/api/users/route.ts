@@ -14,8 +14,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')
     const agentId = searchParams.get('agentId')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500) // Max 500
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     let users
+    let total = 0
 
     if (session.user.role === 'ADMIN') {
       // Admin can see all users, optionally filtered by agentId
@@ -27,56 +30,70 @@ export async function GET(request: NextRequest) {
         whereClause.agentId = agentId
       }
 
-      users = await prisma.user.findMany({
-        where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          phone: true,
-          role: true,
-          idNumber: true,
-          agentId: true,
-          logoUrl: true,
-          createdAt: true,
-          agent: {
-            select: {
-              id: true,
-              name: true,
+      const where = Object.keys(whereClause).length > 0 ? whereClause : undefined
+
+      ;[users, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+            idNumber: true,
+            agentId: true,
+            logoUrl: true,
+            createdAt: true,
+            agent: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            _count: {
+              select: { clients: true, folders: true },
             },
           },
-          _count: {
-            select: { clients: true, folders: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        }),
+        prisma.user.count({ where }),
+      ])
     } else if (session.user.role === 'AGENT') {
       // Agent can only see their clients
-      users = await prisma.user.findMany({
-        where: {
-          agentId: session.user.id,
-          role: 'CLIENT',
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          phone: true,
-          role: true,
-          idNumber: true,
-          createdAt: true,
-          _count: {
-            select: { folders: true },
+      const where = {
+        agentId: session.user.id,
+        role: 'CLIENT' as const,
+      }
+
+      ;[users, total] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            phone: true,
+            role: true,
+            idNumber: true,
+            createdAt: true,
+            _count: {
+              select: { folders: true },
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset,
+        }),
+        prisma.user.count({ where }),
+      ])
     } else {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return NextResponse.json(users)
+    return NextResponse.json({ users, total, limit, offset })
   } catch (error) {
     console.error('Error fetching users:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

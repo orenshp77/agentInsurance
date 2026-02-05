@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { uploadToGCS } from '@/lib/gcs'
 
 const MAX_FILE_SIZE_MB = 5 // 5MB limit for logos
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
@@ -50,22 +50,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create logos directory if it doesn't exist
-    const logosDir = path.join(process.cwd(), 'public', 'uploads', 'logos')
-    await mkdir(logosDir, { recursive: true })
-
     // Generate unique filename
     const timestamp = Date.now()
     const ext = path.extname(file.name) || '.png'
-    const fileName = `logo-${timestamp}-${Math.random().toString(36).substring(7)}${ext}`
-    const filePath = path.join(logosDir, fileName)
+    const fileName = `logos/logo-${timestamp}-${Math.random().toString(36).substring(7)}${ext}`
 
-    // Write file
+    // Convert file to buffer and upload to GCS
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
 
-    const url = `/uploads/logos/${fileName}`
+    console.log('Uploading logo to GCS:', fileName)
+    const url = await uploadToGCS(buffer, fileName, file.type)
+    console.log('Logo uploaded successfully:', url)
 
     // Update user's logoUrl in database
     await prisma.user.update({

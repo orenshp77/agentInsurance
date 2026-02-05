@@ -128,13 +128,13 @@ export default function AdminLogsPage() {
     }
   }, [filterLevel, page, status, session])
 
-  // Auto-refresh logs every 5 seconds
+  // Auto-refresh logs every 30 seconds
   useEffect(() => {
     if (status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
 
     const interval = setInterval(() => {
       fetchLogs()
-    }, 5000)
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [filterLevel, page, status, session])

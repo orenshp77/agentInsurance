@@ -128,13 +128,13 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
     }
   }, [session, resolvedParams.clientId])
 
-  // Auto-refresh data every 5 seconds
+  // Auto-refresh data every 30 seconds
   useEffect(() => {
     if (!session?.user) return
 
     const interval = setInterval(() => {
       fetchFolders()
-    }, 5000)
+    }, 30000)
 
     return () => clearInterval(interval)
   }, [session, resolvedParams.clientId])
@@ -153,7 +153,8 @@ export default function ClientPreviewPage({ params }: { params: Promise<{ client
     try {
       const res = await fetch(`/api/folders?userId=${resolvedParams.clientId}`)
       const data = await res.json()
-      setFolders(data)
+      // Handle both old array format and new paginated format
+      setFolders(Array.isArray(data) ? data : data.folders || [])
     } catch (error) {
       showError('שגיאה בטעינת התיקיות')
       console.error(error)

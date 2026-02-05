@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId')
     const category = searchParams.get('category')
     const agentId = searchParams.get('agentId')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500) // Max 500
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     let whereClause: Record<string, unknown> = {}
 
@@ -57,20 +59,25 @@ export async function GET(request: NextRequest) {
       whereClause.category = category
     }
 
-    const folders = await prisma.folder.findMany({
-      where: whereClause,
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
+    const [folders, total] = await Promise.all([
+      prisma.folder.findMany({
+        where: whereClause,
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+          _count: {
+            select: { files: true },
+          },
         },
-        _count: {
-          select: { files: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.folder.count({ where: whereClause }),
+    ])
 
-    return NextResponse.json(folders)
+    return NextResponse.json({ folders, total, limit, offset })
   } catch (error) {
     console.error('Error fetching folders:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

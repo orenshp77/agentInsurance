@@ -87,8 +87,9 @@ export default function AgentViewPage() {
         const foldersRes = await fetch(`/api/folders?agentId=${agentId}`)
         if (foldersRes.ok) {
           const foldersData = await foldersRes.json()
-          totalFolders = foldersData.length
-          totalFiles = foldersData.reduce(
+          const folders = Array.isArray(foldersData) ? foldersData : foldersData.folders || []
+          totalFolders = folders.length
+          totalFiles = folders.reduce(
             (acc: number, f: { _count?: { files: number } }) => acc + (f._count?.files || 0),
             0
           )

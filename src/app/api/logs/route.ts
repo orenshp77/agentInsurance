@@ -5,8 +5,38 @@ import { auth } from '@/lib/auth'
 // POST - Create new log entry
 export async function POST(req: NextRequest) {
   try {
+    // Basic validation to prevent log spam
+    const origin = req.headers.get('origin')
+    const referer = req.headers.get('referer')
+    const host = req.headers.get('host')
+
+    // Verify request comes from our application (same origin check)
+    const allowedOrigins = [
+      `https://${host}`,
+      `http://${host}`,
+      process.env.NEXTAUTH_URL,
+      'http://localhost:3000',
+    ].filter(Boolean)
+
+    const isValidOrigin = origin && allowedOrigins.some(allowed => origin.startsWith(allowed as string))
+    const isValidReferer = referer && allowedOrigins.some(allowed => referer.startsWith(allowed as string))
+
+    if (!isValidOrigin && !isValidReferer) {
+      return NextResponse.json({ error: 'Invalid origin' }, { status: 403 })
+    }
+
     const body = await req.json()
     const { message, errorLevel, stack, componentName, userId, deviceInfo, url, metadata } = body
+
+    // Validate required fields
+    if (!message || typeof message !== 'string' || message.length > 5000) {
+      return NextResponse.json({ error: 'Invalid message' }, { status: 400 })
+    }
+
+    const validLevels = ['INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    if (errorLevel && !validLevels.includes(errorLevel)) {
+      return NextResponse.json({ error: 'Invalid error level' }, { status: 400 })
+    }
 
     // Generate AI fix suggestion for errors
     let aiFix: string | null = null

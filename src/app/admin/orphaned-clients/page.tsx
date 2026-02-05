@@ -78,10 +78,12 @@ export default function OrphanedClientsPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch('/api/users')
+      const res = await fetch('/api/users?role=AGENT')
       if (res.ok) {
         const data = await res.json()
-        setAgents(data.filter((u: Agent & { role: string }) => u.role === 'AGENT'))
+        // Handle both old array format and new paginated format
+        const users = Array.isArray(data) ? data : data.users || []
+        setAgents(users)
       }
     } catch (error) {
       console.error('Error fetching agents:', error)
