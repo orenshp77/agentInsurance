@@ -112,9 +112,21 @@ export async function POST(request: NextRequest) {
     const { email, password, name, phone, role, idNumber, logoUrl, agentId: requestAgentId } = body
 
     // Validation
-    if (!email || !password || !name) {
+    if (!name?.trim()) {
       return NextResponse.json(
-        { error: 'Email, password and name are required' },
+        { error: 'שם הוא שדה חובה' },
+        { status: 400 }
+      )
+    }
+    if (!email?.trim()) {
+      return NextResponse.json(
+        { error: 'אימייל הוא שדה חובה' },
+        { status: 400 }
+      )
+    }
+    if (!password && !body.skipPassword) {
+      return NextResponse.json(
+        { error: 'סיסמה היא שדה חובה' },
         { status: 400 }
       )
     }
@@ -141,9 +153,35 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Email already exists' },
+        { error: 'אימייל זה כבר קיים במערכת' },
         { status: 400 }
       )
+    }
+
+    // Check if idNumber already exists
+    if (idNumber?.trim()) {
+      const existingIdNumber = await prisma.user.findUnique({
+        where: { idNumber },
+      })
+      if (existingIdNumber) {
+        return NextResponse.json(
+          { error: 'תעודת זהות זו כבר קיימת במערכת' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check if phone already exists
+    if (phone?.trim()) {
+      const existingPhone = await prisma.user.findFirst({
+        where: { phone },
+      })
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: 'מספר טלפון זה כבר קיים במערכת' },
+          { status: 400 }
+        )
+      }
     }
 
     // Hash password
@@ -183,8 +221,20 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(user, { status: 201 })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating user:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // Handle Prisma unique constraint errors
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      const meta = 'meta' in error ? error.meta as Record<string, unknown> : null
+      const target = meta?.target as string[] | undefined
+      if (target?.includes('email')) {
+        return NextResponse.json({ error: 'אימייל זה כבר קיים במערכת' }, { status: 400 })
+      }
+      if (target?.includes('idNumber')) {
+        return NextResponse.json({ error: 'תעודת זהות זו כבר קיימת במערכת' }, { status: 400 })
+      }
+      return NextResponse.json({ error: 'ערך זה כבר קיים במערכת' }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'שגיאה ביצירת המשתמש' }, { status: 500 })
   }
 }

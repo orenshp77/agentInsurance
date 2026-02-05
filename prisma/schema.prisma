@@ -34,7 +34,7 @@ model User {
   name             String
   phone            String?
   idNumber         String?  @unique
-  logoUrl          String?  // Agent logo URL
+  logoUrl          String?  @db.Text // Agent logo URL (GCS URL)
   profileCompleted Boolean  @default(false) // Has user completed profile setup
   formerAgentName  String?  // Name of deleted agent (for orphaned clients)
 
@@ -96,7 +96,7 @@ model Folder {
 
 model File {
   id        String   @id @default(cuid())
-  url       String
+  url       String   @db.Text // GCS URL
   fileType  String   // PDF, PNG, JPG
   fileName  String
   notes     String?  // Agent notes
@@ -115,8 +115,8 @@ model Log {
   id         String     @id @default(cuid())
   message    String
   errorLevel ErrorLevel @default(INFO)
-  aiFix      String?    // AI_Solution field for automatic bug fixes
-  metadata   String?    // Additional context data (JSON string)
+  aiFix      String?    @db.Text // AI_Solution field for automatic bug fixes
+  metadata   String?    @db.Text // Additional context data (JSON string)
 
   createdAt  DateTime   @default(now())
 
@@ -152,7 +152,7 @@ model Activity {
   targetType  String?      // USER, FILE, FOLDER
 
   // Additional metadata (JSON string)
-  metadata    String?
+  metadata    String?      @db.Text
 
   createdAt   DateTime     @default(now())
 

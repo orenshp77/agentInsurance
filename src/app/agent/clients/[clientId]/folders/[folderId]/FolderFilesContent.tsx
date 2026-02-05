@@ -621,13 +621,14 @@ export default function FolderFilesContent({
                         <h3 className="font-bold truncate mb-1" title={file.fileName}>
                           {file.fileName}
                         </h3>
-                        <div className="flex items-center gap-2 text-sm text-foreground-muted mb-3">
+                        <div className="flex items-center gap-2 text-sm text-foreground-muted mb-1">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
                             {file.fileType}
                           </span>
-                          <span>•</span>
-                          <span>{new Date(file.createdAt).toLocaleDateString('he-IL')}</span>
                         </div>
+                        <p className="text-xs text-foreground-muted mb-3">
+                          המסמך עלה בתאריך: {new Date(file.createdAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })} {new Date(file.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
 
                         {file.notes && (
                           <div className="mb-3 p-2 bg-primary/5 rounded-lg text-sm text-foreground-muted line-clamp-2">

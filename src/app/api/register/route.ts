@@ -22,9 +22,35 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'משתמש עם אימייל זה כבר קיים במערכת' },
+        { error: 'אימייל זה כבר קיים במערכת' },
         { status: 400 }
       )
+    }
+
+    // Check if idNumber already exists
+    if (idNumber?.trim()) {
+      const existingIdNumber = await prisma.user.findUnique({
+        where: { idNumber },
+      })
+      if (existingIdNumber) {
+        return NextResponse.json(
+          { error: 'תעודת זהות זו כבר קיימת במערכת' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check if phone already exists
+    if (phone?.trim()) {
+      const existingPhone = await prisma.user.findFirst({
+        where: { phone },
+      })
+      if (existingPhone) {
+        return NextResponse.json(
+          { error: 'מספר טלפון זה כבר קיים במערכת' },
+          { status: 400 }
+        )
+      }
     }
 
     // Verify agent exists if agentId provided
@@ -83,11 +109,22 @@ export async function POST(request: NextRequest) {
       email: user.email,
       message: 'המשתמש נוצר בהצלחה',
     })
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Registration error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    // Handle Prisma unique constraint errors
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      const meta = 'meta' in error ? error.meta as Record<string, unknown> : null
+      const target = meta?.target as string[] | undefined
+      if (target?.includes('email')) {
+        return NextResponse.json({ error: 'אימייל זה כבר קיים במערכת' }, { status: 400 })
+      }
+      if (target?.includes('idNumber')) {
+        return NextResponse.json({ error: 'תעודת זהות זו כבר קיימת במערכת' }, { status: 400 })
+      }
+      return NextResponse.json({ error: 'ערך זה כבר קיים במערכת' }, { status: 400 })
+    }
     return NextResponse.json(
-      { error: `שגיאה ביצירת המשתמש: ${errorMessage}` },
+      { error: 'שגיאה ביצירת המשתמש' },
       { status: 500 }
     )
   }

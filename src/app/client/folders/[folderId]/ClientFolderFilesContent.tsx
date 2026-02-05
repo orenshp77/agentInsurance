@@ -555,11 +555,13 @@ export default function ClientFolderFilesContent({
                       <h3 className="font-bold text-foreground mb-1 truncate" title={file.fileName}>
                         {file.fileName}
                       </h3>
-                      <p className="text-sm text-foreground-muted flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-sm text-foreground-muted">
                         <span className={`px-2 py-0.5 rounded text-xs ${fileColor.bg} ${fileColor.text}`}>
                           {file.fileType}
                         </span>
-                        <span>{formatDate(file.createdAt)}</span>
+                      </div>
+                      <p className="text-xs text-foreground-muted mt-2">
+                        המסמך עלה בתאריך: {formatDate(file.createdAt)} {new Date(file.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </p>
 
                       {/* Notes */}

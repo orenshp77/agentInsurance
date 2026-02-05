@@ -22,8 +22,8 @@ export async function uploadToGCS(
     },
   })
 
-  // Make the file publicly accessible
-  await blob.makePublic()
+  // Bucket has uniform access control with allUsers:objectViewer
+  // so all objects are publicly readable - no need for makePublic()
 
   // Return the public URL
   return `https://storage.googleapis.com/${BUCKET_NAME}/${fileName}`

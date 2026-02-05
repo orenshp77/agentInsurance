@@ -37,7 +37,7 @@ export default function ClientRegistrationPage({
 
   const fetchAgent = async () => {
     try {
-      const res = await fetch(`/api/users/${resolvedParams.agentId}`)
+      const res = await fetch(`/api/register/agent/${resolvedParams.agentId}`)
       if (res.ok) {
         const data = await res.json()
         setAgent(data)

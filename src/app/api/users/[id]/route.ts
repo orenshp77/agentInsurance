@@ -110,6 +110,30 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Check email uniqueness if changing email
+    if (email && email !== existingUser.email) {
+      const emailExists = await prisma.user.findUnique({ where: { email } })
+      if (emailExists) {
+        return NextResponse.json({ error: 'אימייל זה כבר קיים במערכת' }, { status: 400 })
+      }
+    }
+
+    // Check idNumber uniqueness if changing idNumber
+    if (idNumber !== undefined && idNumber?.trim() && idNumber !== existingUser.idNumber) {
+      const idNumberExists = await prisma.user.findUnique({ where: { idNumber } })
+      if (idNumberExists) {
+        return NextResponse.json({ error: 'תעודת זהות זו כבר קיימת במערכת' }, { status: 400 })
+      }
+    }
+
+    // Check phone uniqueness if changing phone
+    if (phone !== undefined && phone?.trim() && phone !== existingUser.phone) {
+      const phoneExists = await prisma.user.findFirst({ where: { phone } })
+      if (phoneExists) {
+        return NextResponse.json({ error: 'מספר טלפון זה כבר קיים במערכת' }, { status: 400 })
+      }
+    }
+
     // Prepare update data
     const updateData: Record<string, unknown> = {}
     if (email) updateData.email = email
@@ -134,9 +158,20 @@ export async function PUT(
     })
 
     return NextResponse.json(user)
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error updating user:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      const meta = 'meta' in error ? error.meta as Record<string, unknown> : null
+      const target = meta?.target as string[] | undefined
+      if (target?.includes('email')) {
+        return NextResponse.json({ error: 'אימייל זה כבר קיים במערכת' }, { status: 400 })
+      }
+      if (target?.includes('idNumber')) {
+        return NextResponse.json({ error: 'תעודת זהות זו כבר קיימת במערכת' }, { status: 400 })
+      }
+      return NextResponse.json({ error: 'ערך זה כבר קיים במערכת' }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'שגיאה בעדכון המשתמש' }, { status: 500 })
   }
 }
 
