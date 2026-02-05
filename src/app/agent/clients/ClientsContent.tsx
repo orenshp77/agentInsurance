@@ -242,7 +242,7 @@ export default function ClientsContent() {
 
   const getRegistrationLink = () => {
     if (typeof window === 'undefined') return ''
-    const effectiveAgentId = viewAsId || session?.user?.id
+    const effectiveAgentId = viewAsId || agentId || session?.user?.id
     return `${window.location.origin}/register/${effectiveAgentId}`
   }
 
