@@ -117,51 +117,55 @@ export default function SettingsContent() {
       if (!res.ok) {
         const errorData = await res.text()
         console.error('Save error response:', errorData)
+        let errorMessage = 'שגיאה בשמירת הפרטים'
+        try {
+          const parsed = JSON.parse(errorData)
+          if (parsed.error) errorMessage = parsed.error
+        } catch {
+          // use default error message
+        }
+        showError(errorMessage)
+        setSaving(false)
+        return
       }
 
-      if (res.ok) {
-        // If this is a new user (welcome flow), mark profile as completed
-        // Only do this for the logged-in user, not when viewing as another user
-        if (!isViewingAsOther && (isWelcome || !session?.user?.profileCompleted)) {
-          console.log('Marking profile as complete...')
-          const completeRes = await fetch('/api/users/complete-profile', {
-            method: 'POST',
-          })
-          console.log('Complete profile response:', completeRes.ok, completeRes.status)
-          if (!completeRes.ok) {
-            const completeErrorData = await completeRes.text()
-            console.error('Complete profile error:', completeErrorData)
-          }
-          // Update session to reflect profile completion
-          console.log('Updating session...')
-          await updateSession()
-          console.log('Session updated successfully')
+      // If this is a new user (welcome flow), mark profile as completed
+      // Only do this for the logged-in user, not when viewing as another user
+      if (!isViewingAsOther && (isWelcome || !session?.user?.profileCompleted)) {
+        console.log('Marking profile as complete...')
+        const completeRes = await fetch('/api/users/complete-profile', {
+          method: 'POST',
+        })
+        console.log('Complete profile response:', completeRes.ok, completeRes.status)
+        if (!completeRes.ok) {
+          const completeErrorData = await completeRes.text()
+          console.error('Complete profile error:', completeErrorData)
         }
+        // Update session to reflect profile completion
+        console.log('Updating session...')
+        await updateSession()
+        console.log('Session updated successfully')
+      }
 
-        showSuccess(isViewingAsOther ? 'הפרטים נשמרו בהצלחה' : isWelcome ? 'ברוך הבא! הפרופיל הושלם בהצלחה' : 'הפרטים נשמרו בהצלחה')
+      showSuccess(isViewingAsOther ? 'הפרטים נשמרו בהצלחה' : isWelcome ? 'ברוך הבא! הפרופיל הושלם בהצלחה' : 'הפרטים נשמרו בהצלחה')
 
-        // Redirect to appropriate page after saving
-        if (isWelcome && !isViewingAsOther) {
-          // Use userData.role since session might not be updated yet
-          const userRole = userData?.role || session?.user?.role
-          console.log('Redirecting user with role:', userRole)
-          console.log('Redirect destination:', userRole === 'CLIENT' ? '/client/folders' : '/dashboard')
-          if (userRole === 'CLIENT') {
-            window.location.href = '/client/folders'
-          } else {
-            window.location.href = '/dashboard'
-          }
-          // Don't set saving to false - we're navigating away
-          return
+      // Redirect to appropriate page after saving
+      if (isWelcome && !isViewingAsOther) {
+        // Use userData.role since session might not be updated yet
+        const userRole = userData?.role || session?.user?.role
+        console.log('Redirecting user with role:', userRole)
+        console.log('Redirect destination:', userRole === 'CLIENT' ? '/client/folders' : '/dashboard')
+        if (userRole === 'CLIENT') {
+          window.location.href = '/client/folders'
         } else {
-          // Go back to previous page after saving
-          setSaving(false)
-          handleGoBack()
+          window.location.href = '/dashboard'
         }
+        // Don't set saving to false - we're navigating away
+        return
       } else {
-        console.error('Save failed with status:', res.status)
-        showError('שגיאה בשמירת הפרטים')
+        // Go back to previous page after saving
         setSaving(false)
+        handleGoBack()
       }
     } catch (error) {
       console.error('=== SAVE PROFILE ERROR ===')
