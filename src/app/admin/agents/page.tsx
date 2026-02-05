@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, ArrowRight, Menu, Bell, LogOut, Home, Users, Settings, LogIn, Eye, Copy, AlertTriangle, Image } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, Menu, Bell, LogOut, Home, Users, Settings, LogIn, Eye, Copy, AlertTriangle, Image, Search } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -65,6 +65,7 @@ export default function AdminAgentsPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [orphanedClientsCount, setOrphanedClientsCount] = useState(0)
+  const [agentSearchQuery, setAgentSearchQuery] = useState('')
 
   useEffect(() => {
     // Wait for session to load before checking role
@@ -625,11 +626,33 @@ export default function AdminAgentsPage() {
 
           {/* Agents Table */}
           {activeTab === 'agents' && (
-            <Table
-              data={agents}
-              columns={columns}
-              emptyMessage="אין סוכנים במערכת"
-            />
+            <>
+              <div className="mb-4 relative">
+                <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none" />
+                <input
+                  type="text"
+                  value={agentSearchQuery}
+                  onChange={(e) => setAgentSearchQuery(e.target.value)}
+                  placeholder="חיפוש לפי שם, טלפון או אימייל..."
+                  className="w-full pr-12 pl-4 py-3 rounded-xl bg-[#0d1117] border border-emerald-500/20 text-white placeholder-foreground-muted focus:outline-none focus:border-emerald-500 transition-all"
+                />
+              </div>
+              <Table
+                data={agentSearchQuery.trim()
+                  ? agents.filter((agent) => {
+                      const q = agentSearchQuery.trim().toLowerCase()
+                      return (
+                        agent.name.toLowerCase().includes(q) ||
+                        agent.email.toLowerCase().includes(q) ||
+                        (agent.phone && agent.phone.includes(q))
+                      )
+                    })
+                  : agents
+                }
+                columns={columns}
+                emptyMessage={agentSearchQuery.trim() ? 'לא נמצאו תוצאות' : 'אין סוכנים במערכת'}
+              />
+            </>
           )}
 
           {/* Clients Table */}

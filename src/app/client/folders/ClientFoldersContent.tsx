@@ -116,6 +116,13 @@ export default function ClientFoldersContent() {
   const [logoColors, setLogoColors] = useState<string[]>(['#8b5cf6', '#06b6d4', '#ec4899'])
   const [notifications, setNotifications] = useState<Notification[]>([])
 
+  // Compute display logo URL with multiple fallback sources
+  // Priority: agentInfo (fresh from API) > session logoUrl (for agents viewing as clients)
+  const displayLogoUrl = agentInfo?.logoUrl ||
+    (viewAsClientId && session?.user?.role === 'AGENT' && session?.user?.logoUrl ? session.user.logoUrl : null)
+  const displayAgentName = agentInfo?.name ||
+    (viewAsClientId && session?.user?.role === 'AGENT' ? session?.user?.name : null) || 'סוכן'
+
   // Background landscape images with names
   const landscapes = [
     { name: 'הרים בשלג', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1920&q=80' },
@@ -192,17 +199,31 @@ export default function ClientFoldersContent() {
       const res = await fetch(`/api/users/${agentId}`)
       if (res.ok) {
         const data = await res.json()
-        console.log('Agent data received:', { id: agentId, name: data.name, logoUrl: data.logoUrl })
-        setAgentInfo({ id: agentId, name: data.name, logoUrl: data.logoUrl })
+        // Use API logoUrl, or fallback to session logoUrl if the fetched agent is the current user
+        const effectiveLogoUrl = data.logoUrl || (agentId === session?.user?.id ? session?.user?.logoUrl : null) || null
+        console.log('Agent data received:', { id: agentId, name: data.name, logoUrl: data.logoUrl, effectiveLogoUrl })
+        setAgentInfo({ id: agentId, name: data.name, logoUrl: effectiveLogoUrl })
         // Extract colors from logo
-        if (data.logoUrl) {
-          extractColorsFromImage(data.logoUrl)
+        if (effectiveLogoUrl) {
+          extractColorsFromImage(effectiveLogoUrl)
         }
       } else {
         console.log('fetchAgentInfo failed with status:', res.status)
+        // Fallback: if we're the agent and fetch failed, try using session data
+        if (agentId === session?.user?.id && session?.user?.logoUrl) {
+          console.log('Using session logoUrl as fallback')
+          setAgentInfo({ id: agentId, name: session.user.name || '', logoUrl: session.user.logoUrl })
+          extractColorsFromImage(session.user.logoUrl)
+        }
       }
     } catch (error) {
       console.error('Error fetching agent info:', error)
+      // Fallback on network error
+      if (agentId === session?.user?.id && session?.user?.logoUrl) {
+        console.log('Using session logoUrl as fallback after error')
+        setAgentInfo({ id: agentId, name: session.user.name || '', logoUrl: session.user.logoUrl })
+        extractColorsFromImage(session.user.logoUrl)
+      }
     }
   }
 
@@ -287,7 +308,9 @@ export default function ClientFoldersContent() {
           console.log('ADMIN viewAs: fetching agent logo for agentId:', data.agentId)
           fetchAgentInfo(data.agentId)
         } else if (session?.user?.role === 'ADMIN' && !data.agentId) {
-          console.log('ADMIN viewAs: client has no agentId assigned!')
+          // Client has no agent assigned - fallback to admin's own logo
+          console.log('ADMIN viewAs: client has no agentId, using admin own logo')
+          fetchAgentInfo(session.user.id)
         }
       }
     } catch (error) {
@@ -710,68 +733,50 @@ export default function ClientFoldersContent() {
           <div className="relative max-w-7xl mx-auto px-4 py-10 md:py-16">
             {/* Welcome Section */}
             <div className="text-center mb-10 animate-fade-in-up">
-              {agentInfo?.logoUrl ? (
+              {displayLogoUrl ? (
                 <div className="mb-8 flex justify-center">
                   <div className="relative group">
-                    {/* Animated glow background - uses extracted colors */}
+                    {/* Soft glow behind logo - blends with background */}
                     <div
-                      className="absolute -inset-6 rounded-3xl opacity-40 blur-3xl group-hover:opacity-60 transition-all duration-700 animate-pulse-slow"
+                      className="absolute -inset-8 opacity-50 blur-3xl group-hover:opacity-70 transition-all duration-700 animate-pulse-slow"
                       style={{
-                        background: `linear-gradient(135deg, ${logoColors[0]}, ${logoColors[1]}, ${logoColors[2]})`
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${logoColors[0]}60, ${logoColors[1]}40, transparent)`
                       }}
                     />
                     <div
-                      className="absolute -inset-3 rounded-2xl opacity-30 blur-xl"
+                      className="absolute -inset-4 opacity-40 blur-2xl"
                       style={{
-                        background: `linear-gradient(45deg, ${logoColors[0]}80, ${logoColors[1]}80)`
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${logoColors[0]}50, ${logoColors[1]}30, transparent)`
                       }}
                     />
 
-                    {/* Logo container with glass effect */}
+                    {/* Logo with fade effect */}
                     <div
-                      className="relative p-5 md:p-7 rounded-2xl backdrop-blur-md shadow-2xl"
+                      className="relative w-32 h-32 md:w-44 md:h-44 transition-transform duration-500 group-hover:scale-105"
                       style={{
-                        background: `linear-gradient(135deg, ${logoColors[0]}15, ${logoColors[1]}10, transparent)`,
-                        borderWidth: '1px',
-                        borderStyle: 'solid',
-                        borderImage: `linear-gradient(135deg, ${logoColors[0]}40, ${logoColors[1]}30, ${logoColors[2]}20) 1`
+                        borderRadius: '50%',
                       }}
                     >
-                      {/* Inner glow with logo colors */}
-                      <div
-                        className="absolute inset-0 rounded-2xl opacity-20"
-                        style={{
-                          background: `radial-gradient(ellipse at center, ${logoColors[0]}30, transparent 70%)`
-                        }}
-                      />
-
-                      {/* The logo */}
                       <img
-                        src={agentInfo.logoUrl}
-                        alt={agentInfo.name || 'סוכן'}
-                        className="relative h-24 md:h-32 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                        src={displayLogoUrl}
+                        alt={displayAgentName}
+                        className="w-full h-full object-cover"
                         style={{
-                          filter: `drop-shadow(0 0 30px ${logoColors[0]}50)`
+                          borderRadius: '50%',
+                          maskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
+                          WebkitMaskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
                         }}
                         onError={(e) => {
-                          console.error('Logo failed to load:', agentInfo.logoUrl)
+                          console.error('Logo failed to load:', displayLogoUrl)
                           e.currentTarget.src = '/uploads/logo-finance.png'
                         }}
                       />
                     </div>
 
-                    {/* Shine effect overlay */}
-                    <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
-                      <div
-                        className="absolute -inset-full skew-x-12 animate-shimmer"
-                        style={{
-                          background: `linear-gradient(90deg, transparent, ${logoColors[0]}20, transparent)`
-                        }}
-                      />
-                    </div>
-
                     {/* Floating particles effect */}
-                    <div className="absolute -inset-8 pointer-events-none overflow-hidden rounded-3xl">
+                    <div className="absolute -inset-8 pointer-events-none overflow-hidden rounded-full">
                       <div
                         className="absolute w-2 h-2 rounded-full animate-float-1"
                         style={{ background: logoColors[0], top: '20%', left: '10%' }}
@@ -790,12 +795,20 @@ export default function ClientFoldersContent() {
               ) : (
                 <div className="mb-8 flex justify-center">
                   <div className="relative group">
-                    <div className="absolute -inset-6 rounded-3xl opacity-40 blur-3xl group-hover:opacity-60 transition-all duration-700 animate-pulse-slow bg-gradient-to-r from-primary/50 via-accent/50 to-secondary/50" />
-                    <div className="relative p-5 md:p-7 rounded-2xl backdrop-blur-md shadow-2xl bg-gradient-to-br from-white/10 to-white/5 border border-white/20">
+                    <div className="absolute -inset-8 opacity-50 blur-3xl group-hover:opacity-70 transition-all duration-700 animate-pulse-slow bg-gradient-to-r from-primary/50 via-accent/50 to-secondary/50" style={{ borderRadius: '50%' }} />
+                    <div
+                      className="relative w-32 h-32 md:w-44 md:h-44 transition-transform duration-500 group-hover:scale-105"
+                      style={{ borderRadius: '50%' }}
+                    >
                       <img
                         src="/uploads/logo-finance.png"
                         alt="מגן פיננסי"
-                        className="relative h-24 md:h-32 w-auto object-contain transition-transform duration-500 group-hover:scale-105"
+                        className="w-full h-full object-cover"
+                        style={{
+                          borderRadius: '50%',
+                          maskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
+                          WebkitMaskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
+                        }}
                       />
                     </div>
                   </div>

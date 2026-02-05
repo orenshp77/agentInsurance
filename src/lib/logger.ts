@@ -1,5 +1,17 @@
 // Client-side logging utility with device detection
 
+export type LogCategory =
+  | 'PAGE_VIEW'
+  | 'USER_ACTION'
+  | 'API_SUCCESS'
+  | 'API_ERROR'
+  | 'AUTH'
+  | 'FILE_OP'
+  | 'NETWORK'
+  | 'BROWSER'
+  | 'PERMISSION'
+  | 'SYSTEM'
+
 export interface DeviceInfo {
   userAgent: string
   platform: string
@@ -141,6 +153,8 @@ export async function sendLog(entry: LogEntry): Promise<void> {
 class Logger {
   private componentName?: string
   private userId?: string
+  private userName?: string
+  private userRole?: string
 
   constructor(componentName?: string) {
     this.componentName = componentName
@@ -150,13 +164,82 @@ class Logger {
     this.userId = userId
   }
 
+  setUser(user: { id?: string; name?: string; role?: string }) {
+    this.userId = user.id
+    this.userName = user.name
+    this.userRole = user.role
+  }
+
+  private getUserMeta() {
+    return {
+      userName: this.userName,
+      userRole: this.userRole,
+    }
+  }
+
+  pageView(pageName: string, metadata?: Record<string, unknown>) {
+    const deviceInfo = getDeviceInfo()
+    sendLog({
+      message: `PAGE_VIEW: ${pageName}`,
+      errorLevel: 'INFO',
+      componentName: this.componentName,
+      userId: this.userId,
+      metadata: {
+        ...metadata,
+        category: 'PAGE_VIEW',
+        ...this.getUserMeta(),
+        pageName,
+        deviceType: deviceInfo.deviceType,
+        browser: deviceInfo.browser,
+        browserVersion: deviceInfo.browserVersion,
+        os: deviceInfo.os,
+        osVersion: deviceInfo.osVersion,
+        screenWidth: deviceInfo.screenWidth,
+        screenHeight: deviceInfo.screenHeight,
+      },
+    })
+    this.checkBrowser(deviceInfo)
+  }
+
+  private checkBrowser(deviceInfo: DeviceInfo) {
+    const { browser, browserVersion, os, osVersion } = deviceInfo
+    const major = parseInt(browserVersion.split('.')[0]) || 0
+
+    const isOutdated =
+      (browser === 'Chrome' && major < 90) ||
+      (browser === 'Firefox' && major < 90) ||
+      (browser === 'Safari' && major < 14) ||
+      (browser === 'Edge' && major < 90)
+
+    if (isOutdated) {
+      sendLog({
+        message: `OUTDATED_BROWSER: ${browser} ${browserVersion} (${os} ${osVersion})`,
+        errorLevel: 'WARNING',
+        componentName: this.componentName,
+        userId: this.userId,
+        metadata: {
+          category: 'BROWSER',
+          ...this.getUserMeta(),
+          browser,
+          browserVersion,
+          os,
+          osVersion,
+          recommendation: `יש לעדכן את הדפדפן ${browser} לגרסה האחרונה. גרסה נוכחית: ${browserVersion}`,
+        },
+      })
+    }
+  }
+
   info(message: string, metadata?: Record<string, unknown>) {
     sendLog({
       message,
       errorLevel: 'INFO',
       componentName: this.componentName,
       userId: this.userId,
-      metadata,
+      metadata: {
+        ...metadata,
+        ...this.getUserMeta(),
+      },
     })
   }
 
@@ -166,7 +249,10 @@ class Logger {
       errorLevel: 'WARNING',
       componentName: this.componentName,
       userId: this.userId,
-      metadata,
+      metadata: {
+        ...metadata,
+        ...this.getUserMeta(),
+      },
     })
   }
 
@@ -179,6 +265,7 @@ class Logger {
       userId: this.userId,
       metadata: {
         ...metadata,
+        ...this.getUserMeta(),
         errorName: error?.name,
         errorMessage: error?.message,
       },
@@ -194,6 +281,7 @@ class Logger {
       userId: this.userId,
       metadata: {
         ...metadata,
+        ...this.getUserMeta(),
         errorName: error?.name,
         errorMessage: error?.message,
       },
@@ -214,6 +302,7 @@ export function setupGlobalErrorHandler() {
   // Catch unhandled errors
   window.onerror = (message, source, lineno, colno, error) => {
     logger.critical(`Unhandled Error: ${message}`, error || undefined, {
+      category: 'SYSTEM',
       source,
       lineno,
       colno,
@@ -224,8 +313,44 @@ export function setupGlobalErrorHandler() {
   // Catch unhandled promise rejections
   window.onunhandledrejection = (event) => {
     logger.critical('Unhandled Promise Rejection', event.reason instanceof Error ? event.reason : undefined, {
+      category: 'SYSTEM',
       reason: String(event.reason),
     })
+  }
+}
+
+// Network connectivity monitor
+export function setupNetworkMonitor() {
+  if (typeof window === 'undefined') return
+
+  const logger = createLogger('NetworkMonitor')
+
+  window.addEventListener('offline', () => {
+    logger.warn('NETWORK: החיבור לאינטרנט נותק', { category: 'NETWORK' })
+  })
+
+  window.addEventListener('online', () => {
+    logger.info('NETWORK: החיבור לאינטרנט חזר', { category: 'NETWORK' })
+  })
+
+  // Check connection quality
+  if ('connection' in navigator) {
+    const conn = (navigator as unknown as { connection: { effectiveType?: string; downlink?: number; addEventListener: (type: string, listener: () => void) => void } }).connection
+    if (conn) {
+      const logConnectionInfo = () => {
+        const effectiveType = conn.effectiveType || 'unknown'
+        const downlink = conn.downlink || 0
+        if (effectiveType === '2g' || effectiveType === 'slow-2g') {
+          logger.warn(`NETWORK: חיבור איטי - ${effectiveType} (${downlink}Mbps)`, {
+            category: 'NETWORK',
+            effectiveType,
+            downlink,
+          })
+        }
+      }
+      logConnectionInfo()
+      conn.addEventListener('change', logConnectionInfo)
+    }
   }
 }
 

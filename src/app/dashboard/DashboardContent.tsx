@@ -10,6 +10,7 @@ import {
 import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
+import { useLogger } from '@/hooks/useLogger'
 
 interface Stats {
   users: number
@@ -86,6 +87,7 @@ export default function DashboardContent() {
   const searchParams = useSearchParams()
   const viewAsId = searchParams.get('viewAs')
   const agentId = searchParams.get('agentId')
+  const logger = useLogger('Dashboard')
   const [stats, setStats] = useState<Stats>({ users: 0, folders: 0, files: 0 })
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -121,6 +123,7 @@ export default function DashboardContent() {
         }
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch viewAs user', error instanceof Error ? error : undefined, { category: 'API_ERROR', viewAsId })
       console.error('Error fetching viewAs user:', error)
     }
   }
@@ -137,6 +140,7 @@ export default function DashboardContent() {
         }
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch agent', error instanceof Error ? error : undefined, { category: 'API_ERROR', agentId: id })
       console.error('Error fetching agent:', error)
     }
   }
@@ -149,6 +153,7 @@ export default function DashboardContent() {
         setNotifications(data)
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch notifications', error instanceof Error ? error : undefined, { category: 'API_ERROR' })
       console.error('Error fetching notifications:', error)
     }
   }
@@ -174,6 +179,7 @@ export default function DashboardContent() {
 
   useEffect(() => {
     if (session?.user) {
+      logger.pageView('Dashboard', { role: session.user.role, viewAsId, agentId })
       fetchStats()
       fetchRecentFiles()
       fetchActivities()
@@ -226,6 +232,7 @@ export default function DashboardContent() {
         }
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch agent info', error instanceof Error ? error : undefined, { category: 'API_ERROR' })
       console.error('Error fetching agent info:', error)
     }
   }
@@ -257,6 +264,7 @@ export default function DashboardContent() {
         files: totalFiles,
       }))
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch stats', error instanceof Error ? error : undefined, { category: 'API_ERROR' })
       console.error('Error fetching stats:', error)
     } finally {
       setLoading(false)
@@ -273,6 +281,7 @@ export default function DashboardContent() {
         setRecentFiles(data)
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch recent files', error instanceof Error ? error : undefined, { category: 'API_ERROR' })
       console.error('Error fetching recent files:', error)
     }
   }
@@ -287,6 +296,7 @@ export default function DashboardContent() {
         setActivities(data)
       }
     } catch (error) {
+      logger.error('API_ERROR: Failed to fetch activities', error instanceof Error ? error : undefined, { category: 'API_ERROR' })
       console.error('Error fetching activities:', error)
     }
   }
@@ -587,7 +597,7 @@ export default function DashboardContent() {
                         <div className="my-2 h-px bg-white/10" />
 
                         <button
-                          onClick={() => signOut({ callbackUrl: '/login' })}
+                          onClick={() => { logger.info('AUTH: User signing out', { category: 'AUTH' }); signOut({ callbackUrl: '/login' }) }}
                           className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-error/10 transition-all text-right text-error"
                         >
                           <div className="p-2 rounded-lg bg-error/20">

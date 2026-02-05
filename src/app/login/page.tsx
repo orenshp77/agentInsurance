@@ -5,6 +5,9 @@ import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Mail, ArrowLeft, RefreshCw, Mountain } from 'lucide-react'
 import { showError } from '@/lib/swal'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('LoginPage')
 
 // Real landscape images from Unsplash
 const landscapes = [
@@ -74,6 +77,11 @@ function LoginContent() {
   const [stars] = useState(() => generateStars(100))
   const [isTransitioning, setIsTransitioning] = useState(false)
 
+  // Log page view
+  useEffect(() => {
+    logger.pageView('Login')
+  }, [])
+
   // Auto-rotate backgrounds every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -95,6 +103,8 @@ function LoginContent() {
     setLoading(true)
 
     try {
+      logger.info('AUTH: Login attempt', { category: 'AUTH', email })
+
       const result = await signIn('credentials', {
         email,
         password,
@@ -102,12 +112,15 @@ function LoginContent() {
       })
 
       if (result?.error) {
+        logger.warn('AUTH: Login failed - invalid credentials', { category: 'AUTH', email })
         showError('אימייל או סיסמה שגויים')
       } else {
+        logger.info('AUTH: Login success - redirecting to dashboard', { category: 'AUTH', email })
         router.push('/dashboard')
         router.refresh()
       }
-    } catch {
+    } catch (err) {
+      logger.error('AUTH: Login error', err instanceof Error ? err : undefined, { category: 'AUTH', email })
       showError('שגיאה בהתחברות')
     } finally {
       setLoading(false)

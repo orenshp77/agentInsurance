@@ -2,6 +2,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
+import { serverLogInfo, serverLogWarn } from './serverLogger'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -21,6 +22,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         })
 
         if (!user) {
+          serverLogWarn(`AUTH: Login failed - user not found (${credentials.email})`, {
+            category: 'AUTH',
+            metadata: { attemptedEmail: credentials.email },
+          })
           return null
         }
 
@@ -30,6 +35,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         )
 
         if (!isPasswordValid) {
+          serverLogWarn(`AUTH: Login failed - wrong password (${credentials.email})`, {
+            category: 'AUTH',
+            metadata: { attemptedEmail: credentials.email, userId: user.id },
+          })
           return null
         }
 
@@ -47,6 +56,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } catch (error) {
           console.error('Error recording login activity:', error)
         }
+
+        // Log successful login
+        serverLogInfo(`AUTH: Login success - ${user.name} (${user.email}) [${user.role}]`, {
+          category: 'AUTH',
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+          metadata: { email: user.email },
+        })
 
         return {
           id: user.id,

@@ -459,7 +459,7 @@ export default function ClientsContent() {
                 <ArrowRight size={20} className="md:w-6 md:h-6" />
               </button>
               <h1 className="text-lg md:text-2xl font-bold text-primary truncate">
-                {agentId && agentName ? `לקוחות של ${agentName}` : 'ניהול לקוחות'}
+                {`ניהול לקוחות של הסוכן: ${agentName || viewAsUser?.name || session?.user?.name || ''}`}
               </h1>
             </div>
 

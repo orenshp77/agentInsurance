@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import { User, Mail, Lock, Phone, ArrowLeft, ArrowRight, Sparkles, CheckCircle, Briefcase, Image, Trash2 } from 'lucide-react'
 import { showSuccess, showError } from '@/lib/swal'
 import ImageCropper from '@/components/ui/ImageCropper'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('AgentRegistration')
 
 export default function AgentRegistrationPage() {
   const router = useRouter()
@@ -34,21 +37,25 @@ export default function AgentRegistrationPage() {
     e.preventDefault()
 
     if (formData.password !== formData.confirmPassword) {
+      logger.warn('AUTH: Agent registration - passwords mismatch', { category: 'AUTH', email: formData.email })
       showError('הסיסמאות אינן תואמות')
       return
     }
 
     if (formData.password.length < 6) {
+      logger.warn('AUTH: Agent registration - password too short', { category: 'AUTH', email: formData.email })
       showError('הסיסמה חייבת להכיל לפחות 6 תווים')
       return
     }
 
     setSubmitting(true)
+    logger.info('AUTH: Agent registration attempt', { category: 'AUTH', name: formData.name, email: formData.email })
 
     try {
       // First, upload the logo if exists
       let logoUrl = null
       if (logoFile) {
+        logger.info('FILE_OP: Agent logo upload started', { category: 'FILE_OP', email: formData.email })
         const logoFormData = new FormData()
         logoFormData.append('file', logoFile)
         logoFormData.append('type', 'logo')
@@ -61,6 +68,9 @@ export default function AgentRegistrationPage() {
         if (uploadRes.ok) {
           const uploadData = await uploadRes.json()
           logoUrl = uploadData.url
+          logger.info('FILE_OP: Agent logo upload success', { category: 'FILE_OP', email: formData.email })
+        } else {
+          logger.warn('FILE_OP: Agent logo upload failed', { category: 'FILE_OP', email: formData.email, status: uploadRes.status })
         }
       }
 
@@ -83,9 +93,11 @@ export default function AgentRegistrationPage() {
         throw new Error(error.error || 'שגיאה בהרשמה')
       }
 
+      logger.info('AUTH: Agent registration success', { category: 'AUTH', name: formData.name, email: formData.email })
       setSuccess(true)
       showSuccess('ההרשמה הושלמה בהצלחה!')
     } catch (error) {
+      logger.error('AUTH: Agent registration failed', error instanceof Error ? error : undefined, { category: 'AUTH', email: formData.email })
       showError(error instanceof Error ? error.message : 'שגיאה בהרשמה')
     } finally {
       setSubmitting(false)

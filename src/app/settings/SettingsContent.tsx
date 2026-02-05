@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
 import Swal from 'sweetalert2'
 import { showSuccess, showError } from '@/lib/swal'
+import { useLogger } from '@/hooks/useLogger'
 
 interface UserData {
   id: string
@@ -27,6 +28,7 @@ export default function SettingsContent() {
   const isWelcome = searchParams.get('welcome') === 'true'
   const viewAsId = searchParams.get('viewAs')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const logger = useLogger('Settings')
 
   // Determine if viewing as another user (admin viewing agent's settings)
   const isViewingAsOther = !!viewAsId && session?.user?.role === 'ADMIN'
@@ -55,15 +57,10 @@ export default function SettingsContent() {
     idNumber: '',
   })
 
-  // Log component state on mount and updates
+  // Log page view on mount
   useEffect(() => {
-    console.log('=== SETTINGS PAGE LOADED ===')
-    console.log('isWelcome:', isWelcome)
-    console.log('status:', status)
-    console.log('session:', session)
-    console.log('targetUserId:', targetUserId)
-    console.log('isViewingAsOther:', isViewingAsOther)
-  }, [isWelcome, status, session, targetUserId, isViewingAsOther])
+    logger.pageView('Settings', { isWelcome, isViewingAsOther, targetUserId })
+  }, [isWelcome, isViewingAsOther, targetUserId])
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -93,7 +90,7 @@ export default function SettingsContent() {
         })
       }
     } catch (error) {
-      console.error('Error fetching user data:', error)
+      logger.error('API_ERROR: Failed to fetch user data', error instanceof Error ? error : undefined, { category: 'API_ERROR', targetUserId })
     } finally {
       setLoading(false)
     }
@@ -159,25 +156,18 @@ export default function SettingsContent() {
   }, [isClientWelcome, userData, welcomeAlertShown])
 
   const handleSave = async () => {
-    console.log('=== SAVE PROFILE START ===')
-    console.log('handleSave called, isWelcome:', isWelcome, 'isViewingAsOther:', isViewingAsOther)
-    console.log('targetUserId:', targetUserId)
-    console.log('formData:', JSON.stringify(formData))
-    console.log('session user:', session?.user)
+    logger.info('USER_ACTION: Profile save started', { category: 'USER_ACTION', isWelcome, isViewingAsOther, targetUserId })
     setSaving(true)
     try {
       // Save user data
-      console.log('Sending PUT request to /api/users/' + targetUserId)
       const res = await fetch(`/api/users/${targetUserId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
-      console.log('Save response ok:', res.ok, 'status:', res.status)
       if (!res.ok) {
         const errorData = await res.text()
-        console.error('Save error response:', errorData)
         let errorMessage = 'שגיאה בשמירת הפרטים'
         try {
           const parsed = JSON.parse(errorData)
@@ -185,6 +175,7 @@ export default function SettingsContent() {
         } catch {
           // use default error message
         }
+        logger.warn('USER_ACTION: Profile save failed', { category: 'USER_ACTION', targetUserId, errorMessage, status: res.status })
         showError(errorMessage)
         setSaving(false)
         return
@@ -193,29 +184,23 @@ export default function SettingsContent() {
       // If this is a new user (welcome flow), mark profile as completed
       // Only do this for the logged-in user, not when viewing as another user
       if (!isViewingAsOther && (isWelcome || !session?.user?.profileCompleted)) {
-        console.log('Marking profile as complete...')
         const completeRes = await fetch('/api/users/complete-profile', {
           method: 'POST',
         })
-        console.log('Complete profile response:', completeRes.ok, completeRes.status)
         if (!completeRes.ok) {
-          const completeErrorData = await completeRes.text()
-          console.error('Complete profile error:', completeErrorData)
+          logger.error('API_ERROR: Failed to complete profile', undefined, { category: 'API_ERROR', targetUserId })
         }
         // Update session to reflect profile completion
-        console.log('Updating session...')
         await updateSession()
-        console.log('Session updated successfully')
       }
 
+      logger.info('USER_ACTION: Profile saved successfully', { category: 'USER_ACTION', isWelcome, isViewingAsOther, targetUserId })
       showSuccess(isViewingAsOther ? 'הפרטים נשמרו בהצלחה' : isWelcome ? 'ברוך הבא! הפרופיל הושלם בהצלחה' : 'הפרטים נשמרו בהצלחה')
 
       // Redirect to appropriate page after saving
       if (isWelcome && !isViewingAsOther) {
         // Use userData.role since session might not be updated yet
         const userRole = userData?.role || session?.user?.role
-        console.log('Redirecting user with role:', userRole)
-        console.log('Redirect destination:', userRole === 'CLIENT' ? '/client/folders' : '/dashboard')
         if (userRole === 'CLIENT') {
           sessionStorage.setItem('profileCompleted', 'true')
           window.location.href = '/client/folders?justCompleted=true'
@@ -273,6 +258,8 @@ export default function SettingsContent() {
       if (res.ok) {
         const data = await res.json()
         setUserData(prev => prev ? { ...prev, logoUrl: data.url } : null)
+        // Update session so logoUrl is reflected in JWT token immediately
+        await updateSession()
         showSuccess('הלוגו הועלה בהצלחה')
       } else {
         const error = await res.json()

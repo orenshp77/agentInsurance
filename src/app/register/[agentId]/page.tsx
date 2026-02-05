@@ -4,6 +4,9 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Mail, Lock, Phone, CreditCard, ArrowLeft, Sparkles, CheckCircle, Shield } from 'lucide-react'
 import { showSuccess, showError } from '@/lib/swal'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('ClientRegistration')
 
 interface Agent {
   id: string
@@ -32,6 +35,7 @@ export default function ClientRegistrationPage({
   })
 
   useEffect(() => {
+    logger.pageView('ClientRegistration', { agentId: resolvedParams.agentId })
     fetchAgent()
   }, [resolvedParams.agentId])
 
@@ -41,9 +45,12 @@ export default function ClientRegistrationPage({
       if (res.ok) {
         const data = await res.json()
         setAgent(data)
+        logger.info('AUTH: Agent info loaded for registration', { category: 'AUTH', agentId: resolvedParams.agentId, agentName: data.name })
+      } else {
+        logger.warn('AUTH: Agent not found for registration link', { category: 'AUTH', agentId: resolvedParams.agentId })
       }
     } catch (error) {
-      console.error(error)
+      logger.error('AUTH: Failed to fetch agent for registration', error instanceof Error ? error : undefined, { category: 'AUTH', agentId: resolvedParams.agentId })
     } finally {
       setLoading(false)
     }
@@ -53,16 +60,19 @@ export default function ClientRegistrationPage({
     e.preventDefault()
 
     if (formData.password !== formData.confirmPassword) {
+      logger.warn('AUTH: Client registration - passwords mismatch', { category: 'AUTH', email: formData.email })
       showError('הסיסמאות אינן תואמות')
       return
     }
 
     if (formData.password.length < 6) {
+      logger.warn('AUTH: Client registration - password too short', { category: 'AUTH', email: formData.email })
       showError('הסיסמה חייבת להכיל לפחות 6 תווים')
       return
     }
 
     setSubmitting(true)
+    logger.info('AUTH: Client registration attempt', { category: 'AUTH', name: formData.name, email: formData.email, agentId: resolvedParams.agentId })
 
     try {
       const res = await fetch('/api/register', {
@@ -84,9 +94,11 @@ export default function ClientRegistrationPage({
         throw new Error(error.error || 'שגיאה בהרשמה')
       }
 
+      logger.info('AUTH: Client registration success', { category: 'AUTH', name: formData.name, email: formData.email, agentId: resolvedParams.agentId })
       setSuccess(true)
       showSuccess('ההרשמה הושלמה בהצלחה!')
     } catch (error) {
+      logger.error('AUTH: Client registration failed', error instanceof Error ? error : undefined, { category: 'AUTH', email: formData.email, agentId: resolvedParams.agentId })
       showError(error instanceof Error ? error.message : 'שגיאה בהרשמה')
     } finally {
       setSubmitting(false)

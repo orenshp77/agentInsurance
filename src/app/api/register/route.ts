@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { serverLogInfo, serverLogWarn, serverLogError } from '@/lib/serverLogger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
+      serverLogWarn(`AUTH: Registration failed - duplicate email (${email})`, { category: 'AUTH', metadata: { email } })
       return NextResponse.json(
         { error: 'אימייל זה כבר קיים במערכת' },
         { status: 400 }
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
         where: { idNumber },
       })
       if (existingIdNumber) {
+        serverLogWarn(`AUTH: Registration failed - duplicate ID number`, { category: 'AUTH', metadata: { email, idNumber } })
         return NextResponse.json(
           { error: 'תעודת זהות זו כבר קיימת במערכת' },
           { status: 400 }
@@ -46,6 +49,7 @@ export async function POST(request: NextRequest) {
         where: { phone },
       })
       if (existingPhone) {
+        serverLogWarn(`AUTH: Registration failed - duplicate phone`, { category: 'AUTH', metadata: { email, phone } })
         return NextResponse.json(
           { error: 'מספר טלפון זה כבר קיים במערכת' },
           { status: 400 }
@@ -60,6 +64,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (!agent || (agent.role !== 'AGENT' && agent.role !== 'ADMIN')) {
+        serverLogWarn(`AUTH: Registration failed - agent not found`, { category: 'AUTH', metadata: { email, agentId } })
         return NextResponse.json(
           { error: 'הסוכן לא נמצא' },
           { status: 400 }
@@ -103,6 +108,14 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    serverLogInfo(`AUTH: Registration success - ${name} (${email}) [CLIENT]`, {
+      category: 'AUTH',
+      userId: user.id,
+      userName: name,
+      userRole: 'CLIENT',
+      metadata: { email, agentId },
+    })
+
     return NextResponse.json({
       id: user.id,
       name: user.name,
@@ -110,6 +123,7 @@ export async function POST(request: NextRequest) {
       message: 'המשתמש נוצר בהצלחה',
     })
   } catch (error: unknown) {
+    serverLogError('AUTH: Registration server error', error, { category: 'AUTH' })
     console.error('Registration error:', error)
     // Handle Prisma unique constraint errors
     if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
