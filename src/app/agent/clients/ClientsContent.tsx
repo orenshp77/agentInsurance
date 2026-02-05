@@ -242,7 +242,8 @@ export default function ClientsContent() {
 
   const getRegistrationLink = () => {
     if (typeof window === 'undefined') return ''
-    return `${window.location.origin}/register/${session?.user?.id}`
+    const effectiveAgentId = viewAsId || session?.user?.id
+    return `${window.location.origin}/register/${effectiveAgentId}`
   }
 
   const copyRegistrationLink = async () => {
