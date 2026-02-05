@@ -126,9 +126,11 @@ export default function CategoryUploadContent({
   )
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !selectedClient) return
-    await uploadFile(file)
+    const files = e.target.files
+    if (!files || files.length === 0 || !selectedClient) return
+    for (const file of Array.from(files)) {
+      await uploadFile(file)
+    }
   }
 
   const uploadFile = async (file: File) => {
@@ -255,9 +257,11 @@ export default function CategoryUploadContent({
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file && selectedClient) {
-      await uploadFile(file)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0 && selectedClient) {
+      for (const file of Array.from(files)) {
+        await uploadFile(file)
+      }
     }
   }
 
@@ -560,6 +564,7 @@ export default function CategoryUploadContent({
                       ref={fileInputRef}
                       type="file"
                       accept=".pdf,.png,.jpg,.jpeg"
+                      multiple
                       onChange={handleFileUpload}
                       className="hidden"
                     />

@@ -145,15 +145,18 @@ export default function ClientFoldersContent() {
     return () => clearInterval(interval)
   }, [showBackground, currentBgIndex])
 
+  const justCompleted = searchParams.get('justCompleted') === 'true'
+
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login')
     }
     // Redirect new clients (profile not completed) to settings page
-    if (status === 'authenticated' && session?.user?.role === 'CLIENT' && !session.user.profileCompleted) {
+    // Skip if profile was just completed (justCompleted param)
+    if (status === 'authenticated' && session?.user?.role === 'CLIENT' && !session.user.profileCompleted && !justCompleted) {
       router.push('/settings?welcome=true')
     }
-  }, [status, router, session])
+  }, [status, router, session, justCompleted])
 
   // Fetch client name and agent logo when viewing as agent or admin
   useEffect(() => {

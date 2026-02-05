@@ -166,9 +166,11 @@ export default function FolderFilesContent({
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    await uploadFile(file)
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    for (const file of Array.from(files)) {
+      await uploadFile(file)
+    }
   }
 
   const uploadFile = async (file: File) => {
@@ -221,9 +223,11 @@ export default function FolderFilesContent({
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) {
-      await uploadFile(file)
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      for (const file of Array.from(files)) {
+        await uploadFile(file)
+      }
     }
   }
 
@@ -530,6 +534,7 @@ export default function FolderFilesContent({
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg"
+                multiple
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -543,7 +548,7 @@ export default function FolderFilesContent({
                 </div>
 
                 <h3 className="text-xl font-bold mb-2">
-                  {uploading ? 'מעלה קובץ...' : isDragging ? 'שחרר כאן' : 'גרור קובץ או לחץ להעלאה'}
+                  {uploading ? 'מעלה קבצים...' : isDragging ? 'שחרר כאן' : 'גרור קבצים או לחץ להעלאה'}
                 </h3>
                 <p className="text-foreground-muted">
                   PDF, PNG, JPG עד 10MB

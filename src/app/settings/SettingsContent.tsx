@@ -147,7 +147,7 @@ export default function SettingsContent() {
         try {
           await fetch('/api/users/complete-profile', { method: 'POST' })
           await updateSession()
-          window.location.href = '/client/folders'
+          window.location.replace('/client/folders?justCompleted=true')
         } catch {
           showError('שגיאה, נסה שנית')
         }
