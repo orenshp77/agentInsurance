@@ -215,10 +215,7 @@ export default function SettingsContent() {
         handleGoBack()
       }
     } catch (error) {
-      console.error('=== SAVE PROFILE ERROR ===')
-      console.error('Error type:', typeof error)
-      console.error('Error message:', error instanceof Error ? error.message : String(error))
-      console.error('Error stack:', error instanceof Error ? error.stack : 'N/A')
+      logger.error('USER_ACTION: Profile save error', error instanceof Error ? error : undefined, { category: 'USER_ACTION', targetUserId })
       showError('שגיאה בשמירת הפרטים')
       setSaving(false)
     }
@@ -241,6 +238,7 @@ export default function SettingsContent() {
     }
 
     setUploading(true)
+    logger.info('FILE_OP: Logo upload started', { category: 'FILE_OP', fileSize: file.size, fileType: file.type })
     try {
       const uploadFormData = new FormData()
       uploadFormData.append('file', file)
@@ -260,13 +258,15 @@ export default function SettingsContent() {
         setUserData(prev => prev ? { ...prev, logoUrl: data.url } : null)
         // Update session so logoUrl is reflected in JWT token immediately
         await updateSession()
+        logger.info('FILE_OP: Logo upload success', { category: 'FILE_OP' })
         showSuccess('הלוגו הועלה בהצלחה')
       } else {
         const error = await res.json()
+        logger.error('FILE_OP: Logo upload failed', undefined, { category: 'FILE_OP', status: res.status, errorMessage: error.message })
         showError(error.message || 'שגיאה בהעלאת הלוגו')
       }
     } catch (error) {
-      console.error('Error uploading logo:', error)
+      logger.error('FILE_OP: Logo upload error', error instanceof Error ? error : undefined, { category: 'FILE_OP' })
       showError('שגיאה בהעלאת הלוגו')
     } finally {
       setUploading(false)

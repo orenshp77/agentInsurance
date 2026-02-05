@@ -97,6 +97,24 @@ export function middleware(request: NextRequest) {
   const { limited, remaining } = checkRateLimit(rateLimitKey, windowMs, maxRequests)
 
   if (limited) {
+    // Log rate limit event (fire-and-forget, edge-compatible)
+    try {
+      const logUrl = new URL('/api/logs', request.url)
+      fetch(logUrl.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'origin': request.nextUrl.origin,
+          'referer': request.nextUrl.origin,
+        },
+        body: JSON.stringify({
+          message: `RATE_LIMIT: ${clientIP} exceeded ${maxRequests} requests on ${pathname}`,
+          errorLevel: 'WARNING',
+          metadata: { category: 'PERMISSION', clientIP, pathname, maxRequests },
+        }),
+      }).catch(() => {})
+    } catch { /* ignore */ }
+
     return new NextResponse(
       JSON.stringify({
         error: 'Too many requests',
