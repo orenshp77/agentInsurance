@@ -188,10 +188,28 @@ export default function ClientFoldersContent() {
 
   // Fetch agent info for regular client login
   useEffect(() => {
-    if (session?.user?.role === 'CLIENT' && session?.user?.agentId) {
+    if (status !== 'authenticated' || session?.user?.role !== 'CLIENT') return
+    if (agentInfo) return // Already loaded
+
+    if (session.user.agentId) {
+      // AgentId available in session - fetch directly
       fetchAgentInfo(session.user.agentId)
+    } else {
+      // AgentId not in session (JWT might be stale) - fetch client data from API to get agentId
+      console.log('CLIENT: agentId not in session, fetching from API...')
+      fetch(`/api/users/${session.user.id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.agentId) {
+            console.log('CLIENT: found agentId from API:', data.agentId)
+            fetchAgentInfo(data.agentId)
+          } else {
+            console.log('CLIENT: no agentId found in DB either')
+          }
+        })
+        .catch(err => console.error('CLIENT: error fetching own data:', err))
     }
-  }, [session])
+  }, [status, session, agentInfo])
 
   const fetchAgentInfo = async (agentId: string) => {
     try {
