@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowRight, Camera, Save, User, Mail, Phone, IdCard, Building2, Loader2, Sparkles, PartyPopper } from 'lucide-react'
 import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
+import Swal from 'sweetalert2'
 import { showSuccess, showError } from '@/lib/swal'
 
 interface UserData {
@@ -45,6 +46,7 @@ export default function SettingsContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [welcomeAlertShown, setWelcomeAlertShown] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -96,6 +98,64 @@ export default function SettingsContent() {
       setLoading(false)
     }
   }
+
+  // CLIENT welcome alert - show popup instead of form
+  const isClientWelcome = isWelcome && !isViewingAsOther && userData?.role === 'CLIENT'
+
+  useEffect(() => {
+    if (!isClientWelcome || !userData || welcomeAlertShown) return
+    setWelcomeAlertShown(true)
+
+    const showClientWelcomeAlert = async () => {
+      const result = await Swal.fire({
+        title: 'ברוכים הבאים',
+        html: `
+          <div style="text-align: right; direction: rtl;">
+            <p style="margin-bottom: 20px; color: #a0aec0; font-size: 15px;">לפני הכניסה, בדקו שהפרטים נכונים</p>
+            <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; text-align: right;">
+              <div style="margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
+                <span style="color: #a0aec0; font-size: 13px;">שם מלא</span>
+                <div style="font-size: 16px; color: #e8e8e8; margin-top: 4px;">${userData.name || '-'}</div>
+              </div>
+              <div style="margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
+                <span style="color: #a0aec0; font-size: 13px;">אימייל</span>
+                <div style="font-size: 16px; color: #e8e8e8; margin-top: 4px; direction: ltr; text-align: right;">${userData.email || '-'}</div>
+              </div>
+              <div style="margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 14px;">
+                <span style="color: #a0aec0; font-size: 13px;">טלפון</span>
+                <div style="font-size: 16px; color: #e8e8e8; margin-top: 4px; direction: ltr; text-align: right;">${userData.phone || '-'}</div>
+              </div>
+              <div>
+                <span style="color: #a0aec0; font-size: 13px;">תעודת זהות</span>
+                <div style="font-size: 16px; color: #e8e8e8; margin-top: 4px; direction: ltr; text-align: right;">${userData.idNumber || '-'}</div>
+              </div>
+            </div>
+          </div>
+        `,
+        confirmButtonText: 'הכל נכון? נכנסים לכרטיס שלך',
+        confirmButtonColor: '#3b82f6',
+        showCancelButton: false,
+        showCloseButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        background: '#0f3460',
+        color: '#e8e8e8',
+        footer: '<a href="/settings" style="color: #a0aec0; font-size: 13px; text-decoration: underline;">משהו בפרטים לא נכון? לחץ כאן ושנה</a>',
+      })
+
+      if (result.isConfirmed) {
+        try {
+          await fetch('/api/users/complete-profile', { method: 'POST' })
+          await updateSession()
+          window.location.href = '/client/folders'
+        } catch {
+          showError('שגיאה, נסה שנית')
+        }
+      }
+    }
+
+    showClientWelcomeAlert()
+  }, [isClientWelcome, userData, welcomeAlertShown])
 
   const handleSave = async () => {
     console.log('=== SAVE PROFILE START ===')
@@ -243,6 +303,18 @@ export default function SettingsContent() {
   const effectiveRole = isViewingAsOther && userData?.role ? userData.role : session.user.role
   const isAgent = effectiveRole === 'AGENT'
   const isAdmin = effectiveRole === 'ADMIN'
+
+  // CLIENT welcome: show only minimal background, the SweetAlert handles everything
+  if (isClientWelcome) {
+    return (
+      <div className="min-h-screen bg-background bg-mesh bg-grid flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="loading-spinner mx-auto mb-4" />
+          <p className="text-foreground-muted">טוען...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AppLayout showHeader={false} showFooter={false}>

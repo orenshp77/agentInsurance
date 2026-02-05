@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Pencil, Trash2, ArrowRight, MessageCircle, Eye, UserPlus, Copy, Check, FolderOpen } from 'lucide-react'
+import { Plus, Pencil, Trash2, ArrowRight, MessageCircle, Eye, UserPlus, Copy, Check, FolderOpen, Search } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
@@ -53,6 +53,7 @@ export default function ClientsContent() {
   const [newClientPhone, setNewClientPhone] = useState('')
   const [agentName, setAgentName] = useState<string>('')
   const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Determine if admin is viewing as agent
   const isViewingAs = !!viewAsId && session?.user?.role === 'ADMIN'
@@ -299,6 +300,17 @@ export default function ClientsContent() {
       </div>
     )
   }
+
+  const filteredClients = searchQuery.trim()
+    ? clients.filter((client) => {
+        const q = searchQuery.trim().toLowerCase()
+        return (
+          client.name.toLowerCase().includes(q) ||
+          (client.phone && client.phone.includes(q)) ||
+          (client.idNumber && client.idNumber.includes(q))
+        )
+      })
+    : clients
 
   const columns = [
     { key: 'name', header: 'שם' },
@@ -559,10 +571,22 @@ export default function ClientsContent() {
 
         {/* Content */}
         <main className={`max-w-7xl mx-auto px-4 py-8 ${isViewingAs ? 'pt-40' : 'pt-28'}`}>
+          {/* Search */}
+          <div className="mb-4 relative">
+            <Search size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-foreground-muted pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="חיפוש לפי שם, טלפון או ת.ז..."
+              className="w-full pr-12 pl-4 py-3 rounded-xl bg-background-card border border-primary/20 text-white placeholder-foreground-muted focus:outline-none focus:border-primary transition-all"
+            />
+          </div>
+
           <Table
-            data={clients}
+            data={filteredClients}
             columns={columns}
-            emptyMessage="אין לקוחות במערכת"
+            emptyMessage={searchQuery.trim() ? 'לא נמצאו תוצאות' : 'אין לקוחות במערכת'}
           />
         </main>
 
