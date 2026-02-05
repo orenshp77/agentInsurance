@@ -24,7 +24,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-screen gradient-mesh">
+    <div className="min-h-screen gradient-mesh overflow-x-hidden">
       {showHeader && <Header />}
 
       <main className={`

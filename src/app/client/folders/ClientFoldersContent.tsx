@@ -423,7 +423,7 @@ export default function ClientFoldersContent() {
 
   return (
     <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-32 relative">
+      <div className="min-h-screen pb-32 relative overflow-x-hidden">
         {/* Full Screen Dynamic Background */}
         {showBackground && (
           <div className="fixed inset-0 z-0">

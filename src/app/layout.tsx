@@ -21,9 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+      </head>
       <body
         className={`${assistant.variable} font-sans antialiased`}
-        style={{ fontFamily: 'var(--font-assistant), sans-serif' }}
+        style={{ fontFamily: 'var(--font-assistant), sans-serif', overscrollBehaviorX: 'none', touchAction: 'pan-y' }}
       >
         <Providers>{children}</Providers>
       </body>
