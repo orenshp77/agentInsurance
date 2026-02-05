@@ -465,7 +465,7 @@ export default function CategoryUploadContent({
                         }`}
                       >
                         <div
-                          onClick={() => setSelectedClient(client)}
+                          onClick={() => setSelectedClient(selectedClient?.id === client.id ? null : client)}
                           className="flex items-center gap-4 cursor-pointer"
                         >
                           <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold ${
