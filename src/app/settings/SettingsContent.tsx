@@ -147,6 +147,7 @@ export default function SettingsContent() {
         try {
           await fetch('/api/users/complete-profile', { method: 'POST' })
           await updateSession()
+          sessionStorage.setItem('profileCompleted', 'true')
           window.location.replace('/client/folders?justCompleted=true')
         } catch {
           showError('שגיאה, נסה שנית')
@@ -216,7 +217,8 @@ export default function SettingsContent() {
         console.log('Redirecting user with role:', userRole)
         console.log('Redirect destination:', userRole === 'CLIENT' ? '/client/folders' : '/dashboard')
         if (userRole === 'CLIENT') {
-          window.location.href = '/client/folders'
+          sessionStorage.setItem('profileCompleted', 'true')
+          window.location.href = '/client/folders?justCompleted=true'
         } else {
           window.location.href = '/dashboard'
         }
