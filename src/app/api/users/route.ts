@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic'
+
 // GET - List users (filtered by role and permissions)
 export async function GET(request: NextRequest) {
   try {
@@ -93,7 +96,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return NextResponse.json({ users, total, limit, offset })
+    return NextResponse.json(
+      { users, total, limit, offset },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    )
   } catch (error) {
     console.error('Error fetching users:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
