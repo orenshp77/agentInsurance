@@ -229,7 +229,7 @@ function LoginContent() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-primary focus:bg-white/15 transition-all text-sm sm:text-base"
+                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-primary focus:bg-white/15 transition-all text-base"
                   placeholder="your@email.com"
                   required
                   dir="ltr"
@@ -251,7 +251,7 @@ function LoginContent() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-secondary focus:bg-white/15 transition-all text-sm sm:text-base"
+                  className="w-full px-4 py-3 sm:py-4 pr-12 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-secondary focus:bg-white/15 transition-all text-base"
                   placeholder="••••••••"
                   required
                   dir="ltr"
