@@ -1,0 +1,15 @@
+{
+  "name": "monitoring-bot",
+  "version": "1.0.0",
+  "description": "Automated monitoring and backup bot",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "gcloud functions deploy monitoring-bot --runtime nodejs20 --trigger-http --allow-unauthenticated --project insurance-app-486316 --region me-west1"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "@google-cloud/storage": "^7.18.0",
+    "nodemailer": "^7.0.13",
+    "node-fetch": "^3.3.2"
+  }
+}
