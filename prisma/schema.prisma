@@ -160,3 +160,17 @@ model Activity {
   @@index([userId])
   @@index([createdAt])
 }
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String   // Email of user requesting reset
+  token     String   @unique // Unique reset token
+  expiresAt DateTime // Token expiration time
+  used      Boolean  @default(false) // Has token been used
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+}

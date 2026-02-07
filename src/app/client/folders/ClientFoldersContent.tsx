@@ -16,6 +16,7 @@ import { AppLayout } from '@/components/layout'
 import Swal from 'sweetalert2'
 import { showError } from '@/lib/swal'
 import BarChart from '@/components/ui/BarChart'
+import { withFreshCacheBust } from '@/lib/utils'
 
 interface Folder {
   id: string
@@ -778,7 +779,7 @@ export default function ClientFoldersContent() {
                       }}
                     >
                       <img
-                        src={displayLogoUrl}
+                        src={withFreshCacheBust(displayLogoUrl)}
                         alt={displayAgentName}
                         className="w-full h-full object-cover"
                         style={{

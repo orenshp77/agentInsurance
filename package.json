@@ -15,10 +15,13 @@
   "dependencies": {
     "@google-cloud/storage": "^7.18.0",
     "@prisma/client": "^6.19.2",
+    "@types/nodemailer": "^7.0.9",
     "bcryptjs": "^3.0.3",
+    "dotenv": "^17.2.4",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",
+    "nodemailer": "^7.0.13",
     "prisma": "^6.19.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",

@@ -61,7 +61,7 @@ export default function ClientsContent() {
   // Fetch viewAs user info
   useEffect(() => {
     if (viewAsId && session?.user?.role === 'ADMIN') {
-      fetch(`/api/users/${viewAsId}`)
+      fetch(`/api/users/${viewAsId}?_t=${Date.now()}`)
         .then(res => res.json())
         .then(data => setViewAsUser(data))
         .catch(console.error)
@@ -101,7 +101,7 @@ export default function ClientsContent() {
 
   const fetchAgentName = async () => {
     try {
-      const res = await fetch(`/api/users/${agentId}`)
+      const res = await fetch(`/api/users/${agentId}?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setAgentName(data.name)
@@ -115,9 +115,11 @@ export default function ClientsContent() {
     try {
       // Use viewAsId (admin viewing as agent) or agentId parameter
       const targetAgentId = viewAsId || agentId
-      const url = targetAgentId
+      const baseUrl = targetAgentId
         ? `/api/users?role=CLIENT&agentId=${targetAgentId}`
         : '/api/users?role=CLIENT'
+      // Add timestamp to prevent browser caching
+      const url = `${baseUrl}&_t=${Date.now()}`
       const res = await fetch(url, { cache: 'no-store' })
 
       if (!res.ok) {

@@ -9,6 +9,7 @@ import MobileNav from '@/components/layout/MobileNav'
 import Swal from 'sweetalert2'
 import { showSuccess, showError } from '@/lib/swal'
 import { useLogger } from '@/hooks/useLogger'
+import { withFreshCacheBust } from '@/lib/utils'
 
 interface UserData {
   id: string
@@ -393,7 +394,7 @@ export default function SettingsContent() {
                       </div>
                     ) : userData?.logoUrl ? (
                       <img
-                        src={userData.logoUrl}
+                        src={withFreshCacheBust(userData.logoUrl)}
                         alt="לוגו"
                         className="w-full h-full object-cover"
                       />

@@ -1,0 +1,23 @@
+{
+  "name": "insurance-app-auto-healer",
+  "version": "1.0.0",
+  "description": "Auto-healing bot for insurance-app - runs every 3 days",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "npm run build && gcloud functions deploy auto-healer-bot --gen2 --runtime=nodejs20 --region=us-central1 --source=. --entry-point=autoHealerBot --trigger-http --allow-unauthenticated=false"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "nodemailer": "^6.9.14"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/nodemailer": "^6.4.15",
+    "prisma": "^6.19.2",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -262,6 +262,17 @@ function LoginContent() {
               </div>
             </div>
 
+            {/* Forgot Password Link */}
+            <div className="text-right animate-slide-in-right opacity-0" style={{ animationDelay: '0.45s', animationFillMode: 'forwards' }}>
+              <button
+                type="button"
+                onClick={() => router.push('/forgot-password')}
+                className="text-white/60 hover:text-white text-sm transition-colors underline"
+              >
+                שכחתי סיסמה
+              </button>
+            </div>
+
             {/* Submit Button */}
             <button
               type="submit"

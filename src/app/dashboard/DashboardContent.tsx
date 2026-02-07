@@ -11,6 +11,7 @@ import { signOut } from 'next-auth/react'
 import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
 import { useLogger } from '@/hooks/useLogger'
+import { withFreshCacheBust } from '@/lib/utils'
 
 interface Stats {
   users: number
@@ -112,7 +113,7 @@ export default function DashboardContent() {
 
   const fetchViewAsUser = async () => {
     try {
-      const res = await fetch(`/api/users/${viewAsId}`)
+      const res = await fetch(`/api/users/${viewAsId}?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setViewAsUser(data)
@@ -130,7 +131,7 @@ export default function DashboardContent() {
 
   const fetchAgentById = async (id: string) => {
     try {
-      const res = await fetch(`/api/users/${id}`)
+      const res = await fetch(`/api/users/${id}?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         if (data.role === 'AGENT') {
@@ -147,7 +148,7 @@ export default function DashboardContent() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('/api/notifications')
+      const res = await fetch(`/api/notifications?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setNotifications(data)
@@ -206,7 +207,7 @@ export default function DashboardContent() {
       // When admin views as agent, get that agent's info
       const targetAgentId = viewAsId || agentId
       if (targetAgentId && session?.user?.role === 'ADMIN') {
-        const res = await fetch(`/api/users/${targetAgentId}`)
+        const res = await fetch(`/api/users/${targetAgentId}?_t=${Date.now()}`)
         if (res.ok) {
           const data = await res.json()
           setAgentInfo(data)
@@ -215,7 +216,7 @@ export default function DashboardContent() {
       }
       // For agents - get their own logo
       else if (session?.user?.role === 'AGENT') {
-        const res = await fetch(`/api/users/${session.user.id}`)
+        const res = await fetch(`/api/users/${session.user.id}?_t=${Date.now()}`)
         if (res.ok) {
           const data = await res.json()
           setAgentInfo(data)
@@ -224,7 +225,7 @@ export default function DashboardContent() {
       }
       // For clients - get their agent's logo
       else if (session?.user?.role === 'CLIENT' && session.user.agentId) {
-        const res = await fetch(`/api/users/${session.user.agentId}`)
+        const res = await fetch(`/api/users/${session.user.agentId}?_t=${Date.now()}`)
         if (res.ok) {
           const data = await res.json()
           setAgentInfo(data)
@@ -242,15 +243,16 @@ export default function DashboardContent() {
       // When admin views as agent, filter by that agent's ID
       const targetAgentId = viewAsId || agentId
       const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
+      const timestamp = Date.now()
 
       if (session?.user?.role !== 'CLIENT') {
-        const usersRes = await fetch(`/api/users?role=CLIENT${agentParam}`)
+        const usersRes = await fetch(`/api/users?role=CLIENT${agentParam}&_t=${timestamp}`)
         const usersData = await usersRes.json()
         const users = Array.isArray(usersData) ? usersData : usersData.users || []
         setStats((prev) => ({ ...prev, users: users.length || 0 }))
       }
 
-      const foldersRes = await fetch(`/api/folders${targetAgentId ? `?agentId=${targetAgentId}` : ''}`)
+      const foldersRes = await fetch(`/api/folders?_t=${timestamp}${targetAgentId ? `&agentId=${targetAgentId}` : ''}`)
       const foldersData = await foldersRes.json()
       const folders = Array.isArray(foldersData) ? foldersData : foldersData.folders || []
 
@@ -275,7 +277,7 @@ export default function DashboardContent() {
     try {
       const targetAgentId = viewAsId || agentId
       const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
-      const res = await fetch(`/api/files?limit=50&all=true${agentParam}`)
+      const res = await fetch(`/api/files?limit=50&all=true${agentParam}&_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setRecentFiles(data)
@@ -290,7 +292,7 @@ export default function DashboardContent() {
     try {
       const targetAgentId = viewAsId || agentId
       const agentParam = targetAgentId ? `&agentId=${targetAgentId}` : ''
-      const res = await fetch(`/api/activities?limit=20${agentParam}`)
+      const res = await fetch(`/api/activities?limit=20${agentParam}&_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setActivities(data)
@@ -631,7 +633,7 @@ export default function DashboardContent() {
               >
                 {agentLogo ? (
                   <img
-                    src={agentLogo}
+                    src={withFreshCacheBust(agentLogo)}
                     alt={agentInfo?.name || 'לוגו'}
                     className="w-full h-full object-cover"
                   />
@@ -650,7 +652,7 @@ export default function DashboardContent() {
             <div className="flex flex-col items-center justify-center mb-8 animate-fade-in-up">
               <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-primary/30 shadow-primary/20">
                 <img
-                  src={agentLogo || '/uploads/logo-finance.png'}
+                  src={withFreshCacheBust(agentLogo || '/uploads/logo-finance.png')}
                   alt={agentInfo?.name || 'מגן פיננסי'}
                   className="w-full h-full object-cover"
                 />

@@ -13,6 +13,7 @@ import { AppLayout } from '@/components/layout'
 import MobileNav from '@/components/layout/MobileNav'
 import { showSuccess, showError, showConfirm } from '@/lib/swal'
 import ImageCropper, { ImageCropperRef } from '@/components/ui/ImageCropper'
+import { withFreshCacheBust } from '@/lib/utils'
 
 interface Agent {
   id: string
@@ -97,7 +98,7 @@ export default function AdminAgentsPage() {
 
   const fetchOrphanedClientsCount = async () => {
     try {
-      const res = await fetch('/api/orphaned-clients')
+      const res = await fetch(`/api/orphaned-clients?_t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setOrphanedClientsCount(data.totalCount || 0)
@@ -109,7 +110,7 @@ export default function AdminAgentsPage() {
 
   const fetchAgents = async () => {
     try {
-      const res = await fetch('/api/users?role=AGENT')
+      const res = await fetch(`/api/users?role=AGENT&_t=${Date.now()}`)
       const data = await res.json()
       // Handle both old array format and new paginated format
       setAgents(Array.isArray(data) ? data : data.users || [])
@@ -123,7 +124,7 @@ export default function AdminAgentsPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/users?role=CLIENT')
+      const res = await fetch(`/api/users?role=CLIENT&_t=${Date.now()}`)
       const data = await res.json()
       // Handle both old array format and new paginated format
       setClients(Array.isArray(data) ? data : data.users || [])
@@ -683,7 +684,7 @@ export default function AdminAgentsPage() {
                 <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
                   <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
                     <img
-                      src={logoPreview || existingLogoUrl || ''}
+                      src={logoPreview || withFreshCacheBust(existingLogoUrl)}
                       alt="לוגו"
                       className="w-full h-full object-cover"
                     />

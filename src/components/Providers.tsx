@@ -3,6 +3,7 @@
 import { ReactNode, useEffect } from 'react'
 import { SessionProvider } from 'next-auth/react'
 import ErrorBoundary from './ErrorBoundary'
+import NetworkQualityAlert from './NetworkQualityAlert'
 import { setupGlobalErrorHandler, setupNetworkMonitor } from '@/lib/logger'
 
 interface ProvidersProps {
@@ -20,6 +21,8 @@ export default function Providers({ children }: ProvidersProps) {
   return (
     <SessionProvider>
       <ErrorBoundary componentName="RootApp">
+        {/* Network Quality Alert - מופיע כשהחיבור חלש */}
+        <NetworkQualityAlert />
         {children}
       </ErrorBoundary>
     </SessionProvider>
