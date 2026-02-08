@@ -98,30 +98,83 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     const scaleX = image.naturalWidth / image.width
     const scaleY = image.naturalHeight / image.height
 
-    const offscreen = new OffscreenCanvas(
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
-    )
+    // Create a larger canvas to handle rotation
+    const rotRad = (rotate * Math.PI) / 180
+    const cropWidth = completedCrop.width * scaleX
+    const cropHeight = completedCrop.height * scaleY
+
+    // Calculate the size needed for rotated image
+    const size = Math.max(cropWidth, cropHeight) * 2
+
+    const offscreen = new OffscreenCanvas(size, size)
     const ctx = offscreen.getContext('2d')
     if (!ctx) {
       throw new Error('No 2d context')
     }
 
+    const centerX = size / 2
+    const centerY = size / 2
+
+    // Apply transformations
+    ctx.translate(centerX, centerY)
+    ctx.rotate(rotRad)
+    ctx.scale(scale, scale)
+    ctx.translate(-centerX, -centerY)
+
+    // Draw the image first
     ctx.drawImage(
       image,
       completedCrop.x * scaleX,
       completedCrop.y * scaleY,
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
-      0,
-      0,
-      offscreen.width,
-      offscreen.height,
+      cropWidth,
+      cropHeight,
+      centerX - cropWidth / 2,
+      centerY - cropHeight / 2,
+      cropWidth,
+      cropHeight,
     )
 
+    // Reset transformation for cropping
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+
+    // Create final cropped canvas
+    const finalCanvas = new OffscreenCanvas(cropWidth, cropHeight)
+    const finalCtx = finalCanvas.getContext('2d')
+    if (!finalCtx) {
+      throw new Error('No 2d context')
+    }
+
+    finalCtx.drawImage(
+      offscreen,
+      centerX - cropWidth / 2,
+      centerY - cropHeight / 2,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      cropWidth,
+      cropHeight,
+    )
+
+    // If circular crop, apply circular mask using compositing
+    if (circularCrop) {
+      const maskCenterX = cropWidth / 2
+      const maskCenterY = cropHeight / 2
+      const radius = Math.min(maskCenterX, maskCenterY)
+
+      // Use destination-in to keep only the circular part
+      finalCtx.globalCompositeOperation = 'destination-in'
+      finalCtx.beginPath()
+      finalCtx.arc(maskCenterX, maskCenterY, radius, 0, 2 * Math.PI)
+      finalCtx.closePath()
+      finalCtx.fillStyle = '#000000'
+      finalCtx.fill()
+      finalCtx.globalCompositeOperation = 'source-over'
+    }
+
     // Resize if needed
-    let finalWidth = offscreen.width
-    let finalHeight = offscreen.height
+    let finalWidth = cropWidth
+    let finalHeight = cropHeight
 
     if (finalWidth > maxWidth || finalHeight > maxHeight) {
       const ratio = Math.min(maxWidth / finalWidth, maxHeight / finalHeight)
@@ -135,7 +188,24 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
       throw new Error('No 2d context')
     }
 
-    resizedCtx.drawImage(offscreen, 0, 0, finalWidth, finalHeight)
+    // Draw the resized image
+    resizedCtx.drawImage(finalCanvas, 0, 0, finalWidth, finalHeight)
+
+    // If circular crop, apply circular mask using compositing (same as above)
+    if (circularCrop) {
+      const maskCenterX = finalWidth / 2
+      const maskCenterY = finalHeight / 2
+      const radius = Math.min(maskCenterX, maskCenterY)
+
+      // Use destination-in to keep only the circular part
+      resizedCtx.globalCompositeOperation = 'destination-in'
+      resizedCtx.beginPath()
+      resizedCtx.arc(maskCenterX, maskCenterY, radius, 0, 2 * Math.PI)
+      resizedCtx.closePath()
+      resizedCtx.fillStyle = '#000000'
+      resizedCtx.fill()
+      resizedCtx.globalCompositeOperation = 'source-over'
+    }
 
     const blob = await resizedCanvas.convertToBlob({
       type: 'image/png',
@@ -153,7 +223,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     setRotate(0)
 
     return file
-  }, [completedCrop, maxWidth, maxHeight, onImageCropped])
+  }, [completedCrop, maxWidth, maxHeight, onImageCropped, scale, rotate, circularCrop])
 
   const handleReset = () => {
     setImgSrc('')
