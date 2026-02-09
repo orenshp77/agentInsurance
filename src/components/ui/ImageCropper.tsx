@@ -98,10 +98,17 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     const scaleX = image.naturalWidth / image.width
     const scaleY = image.naturalHeight / image.height
 
-    const cropWidth = completedCrop.width * scaleX
-    const cropHeight = completedCrop.height * scaleY
+    // Account for user's zoom level: when zoomed out (scale < 1), we need to crop a LARGER area
+    const adjustedWidth = completedCrop.width / scale
+    const adjustedHeight = completedCrop.height / scale
+    const adjustedX = completedCrop.x - (adjustedWidth - completedCrop.width) / 2
+    const adjustedY = completedCrop.y - (adjustedHeight - completedCrop.height) / 2
 
-    // Simple approach: just crop the selected area, ignore scale/rotate (they're visual only)
+    const cropWidth = adjustedWidth * scaleX
+    const cropHeight = adjustedHeight * scaleY
+    const cropX = adjustedX * scaleX
+    const cropY = adjustedY * scaleY
+
     const canvas = new OffscreenCanvas(cropWidth, cropHeight)
     const ctx = canvas.getContext('2d')
     if (!ctx) {
@@ -111,8 +118,8 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     // Draw the cropped portion
     ctx.drawImage(
       image,
-      completedCrop.x * scaleX,
-      completedCrop.y * scaleY,
+      cropX,
+      cropY,
       cropWidth,
       cropHeight,
       0,
