@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { Upload, X, Check, AlertCircle } from 'lucide-react'
+import { Upload, X, Check, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react'
 
 interface ImageCropperProps {
   onImageCropped: (croppedImageUrl: string, file: File) => void
@@ -53,6 +53,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
   const [error, setError] = useState<string | null>(null)
+  const [scale, setScale] = useState(1)
   const imgRef = useRef<HTMLImageElement>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -73,6 +74,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
 
       setError(null)
       setCrop(undefined)
+      setScale(1)
       const reader = new FileReader()
       reader.addEventListener('load', () =>
         setImgSrc(reader.result?.toString() || ''),
@@ -93,14 +95,15 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
       return null
     }
 
+    // Account for both the display scale (naturalWidth/width) and the zoom scale (transform)
     const scaleX = image.naturalWidth / image.width
     const scaleY = image.naturalHeight / image.height
 
-    // completedCrop is in image.width/height coordinates, convert to naturalWidth/height
-    const cropWidth = completedCrop.width * scaleX
-    const cropHeight = completedCrop.height * scaleY
-    const cropX = completedCrop.x * scaleX
-    const cropY = completedCrop.y * scaleY
+    // completedCrop is in transformed coordinates, adjust for zoom scale first, then display scale
+    const cropWidth = (completedCrop.width / scale) * scaleX
+    const cropHeight = (completedCrop.height / scale) * scaleY
+    const cropX = (completedCrop.x / scale) * scaleX
+    const cropY = (completedCrop.y / scale) * scaleY
 
     const canvas = new OffscreenCanvas(cropWidth, cropHeight)
     const ctx = canvas.getContext('2d')
@@ -168,14 +171,16 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     setImgSrc('')
     setCrop(undefined)
     setCompletedCrop(undefined)
+    setScale(1)
 
     return file
-  }, [completedCrop, maxWidth, maxHeight, onImageCropped, circularCrop])
+  }, [completedCrop, maxWidth, maxHeight, onImageCropped, circularCrop, scale])
 
   const handleReset = () => {
     setImgSrc('')
     setCrop(undefined)
     setCompletedCrop(undefined)
+    setScale(1)
     if (inputRef.current) {
       inputRef.current.value = ''
     }
@@ -234,10 +239,32 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
                 style={{
                   maxHeight: '300px',
                   width: 'auto',
+                  transform: `scale(${scale})`,
                 }}
                 onLoad={onImageLoad}
               />
             </ReactCrop>
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setScale(Math.max(0.5, scale - 0.1))}
+              className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 text-foreground hover:bg-white/10 transition-all flex items-center justify-center"
+            >
+              <ZoomOut size={18} />
+            </button>
+            <span className="text-foreground-muted text-sm min-w-[60px] text-center">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setScale(Math.min(3, scale + 0.1))}
+              className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 text-foreground hover:bg-white/10 transition-all flex items-center justify-center"
+            >
+              <ZoomIn size={18} />
+            </button>
           </div>
 
 
