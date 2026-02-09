@@ -22,3 +22,6 @@ if (process.env.NODE_ENV === 'production') {
     await prisma.$disconnect()
   })
 }
+
+// Export as default for compatibility
+export default prisma
