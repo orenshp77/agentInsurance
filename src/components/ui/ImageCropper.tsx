@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { Upload, X, Check, RotateCcw, ZoomIn, ZoomOut, AlertCircle } from 'lucide-react'
+import { Upload, X, Check, AlertCircle } from 'lucide-react'
 
 interface ImageCropperProps {
   onImageCropped: (croppedImageUrl: string, file: File) => void
@@ -52,8 +52,6 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
   const [imgSrc, setImgSrc] = useState('')
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
-  const [scale, setScale] = useState(1)
-  const [rotate, setRotate] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const previewCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -98,16 +96,11 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     const scaleX = image.naturalWidth / image.width
     const scaleY = image.naturalHeight / image.height
 
-    // Account for user's zoom level: when zoomed out (scale < 1), we need to crop a LARGER area
-    const adjustedWidth = completedCrop.width / scale
-    const adjustedHeight = completedCrop.height / scale
-    const adjustedX = completedCrop.x - (adjustedWidth - completedCrop.width) / 2
-    const adjustedY = completedCrop.y - (adjustedHeight - completedCrop.height) / 2
-
-    const cropWidth = adjustedWidth * scaleX
-    const cropHeight = adjustedHeight * scaleY
-    const cropX = adjustedX * scaleX
-    const cropY = adjustedY * scaleY
+    // completedCrop is in image.width/height coordinates, convert to naturalWidth/height
+    const cropWidth = completedCrop.width * scaleX
+    const cropHeight = completedCrop.height * scaleY
+    const cropX = completedCrop.x * scaleX
+    const cropY = completedCrop.y * scaleY
 
     const canvas = new OffscreenCanvas(cropWidth, cropHeight)
     const ctx = canvas.getContext('2d')
@@ -175,18 +168,14 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     setImgSrc('')
     setCrop(undefined)
     setCompletedCrop(undefined)
-    setScale(1)
-    setRotate(0)
 
     return file
-  }, [completedCrop, maxWidth, maxHeight, onImageCropped, scale, rotate, circularCrop])
+  }, [completedCrop, maxWidth, maxHeight, onImageCropped, circularCrop])
 
   const handleReset = () => {
     setImgSrc('')
     setCrop(undefined)
     setCompletedCrop(undefined)
-    setScale(1)
-    setRotate(0)
     if (inputRef.current) {
       inputRef.current.value = ''
     }
@@ -243,7 +232,6 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
                 alt="Crop me"
                 src={imgSrc}
                 style={{
-                  transform: `scale(${scale}) rotate(${rotate}deg)`,
                   maxHeight: '300px',
                   width: 'auto',
                 }}
@@ -252,51 +240,6 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
             </ReactCrop>
           </div>
 
-          {/* Controls */}
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            {/* Zoom Controls */}
-            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setScale(Math.max(0.5, scale - 0.1))}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
-                title="הקטן"
-              >
-                <ZoomOut size={18} className="text-foreground-muted" />
-              </button>
-              <span className="text-sm text-foreground-muted min-w-[40px] text-center">
-                {Math.round(scale * 100)}%
-              </span>
-              <button
-                type="button"
-                onClick={() => setScale(Math.min(3, scale + 0.1))}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
-                title="הגדל"
-              >
-                <ZoomIn size={18} className="text-foreground-muted" />
-              </button>
-            </div>
-
-            {/* Rotate Controls */}
-            <div className="flex items-center gap-2 bg-white/5 rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setRotate((rotate - 90) % 360)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
-                title="סובב שמאלה"
-              >
-                <RotateCcw size={18} className="text-foreground-muted" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setRotate((rotate + 90) % 360)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-all"
-                title="סובב ימינה"
-              >
-                <RotateCcw size={18} className="text-foreground-muted scale-x-[-1]" />
-              </button>
-            </div>
-          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
