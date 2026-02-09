@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  reactCompiler: true,
+  // reactCompiler disabled - causes Turbopack build errors
+  // reactCompiler: true,
   output: 'standalone', // Required for Docker/Cloud Run
   images: {
     // SECURITY: Only allow images from trusted domains
