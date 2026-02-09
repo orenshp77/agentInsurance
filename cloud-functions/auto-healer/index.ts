@@ -221,7 +221,7 @@ async function checkOrphanedRecords(report: HealthReport) {
     // Find orphaned folders (user deleted)
     const orphanedFolders = await prisma.folder.findMany({
       where: {
-        user: null
+        userId: null
       }
     })
 

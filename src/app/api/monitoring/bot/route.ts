@@ -7,7 +7,7 @@ const EMAIL_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
 const ALERT_EMAIL = 'orenshp77@gmail.com';
 const SITE_URL = process.env.NEXTAUTH_URL || 'https://insurance-app-76715104388s.me-west1.run.app';
 
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: EMAIL_USER,

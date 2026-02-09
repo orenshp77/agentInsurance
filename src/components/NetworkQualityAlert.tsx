@@ -51,24 +51,20 @@ export default function NetworkQualityAlert() {
 
       {/* Alert Card */}
       <div
-        className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999]
-                   w-[90%] max-w-md"
+        className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999] w-[90%] max-w-md"
         style={{
           animation: 'slideInScale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
       >
-        <div className="bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-400
-                       rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-400 rounded-2xl shadow-2xl overflow-hidden">
           {/* Animated Top Bar */}
-          <div className="h-2 bg-gradient-to-r from-orange-400 via-red-400 to-orange-400
-                         animate-gradient-x" />
+          <div className="h-2 bg-gradient-to-r from-orange-400 via-red-400 to-orange-400 animate-gradient-x" />
 
           <div className="p-6 relative">
             {/* Close Button */}
             <button
               onClick={handleDismiss}
-              className="absolute top-4 left-4 text-gray-500 hover:text-gray-700
-                       transition-colors duration-200"
+              className="absolute top-4 left-4 text-gray-500 hover:text-gray-700 transition-colors duration-200"
               aria-label="סגור"
             >
               <svg
@@ -90,8 +86,7 @@ export default function NetworkQualityAlert() {
             <div className="flex justify-center mb-4">
               <div className="relative">
                 {/* Pulsing Circle */}
-                <div className="absolute inset-0 bg-orange-400 rounded-full
-                               animate-ping opacity-40" />
+                <div className="absolute inset-0 bg-orange-400 rounded-full animate-ping opacity-40" />
                 <div className="relative bg-white rounded-full p-4 shadow-lg">
                   {isOnline ? (
                     <Wifi className="w-10 h-10 text-orange-500 animate-pulse" />
@@ -168,11 +163,7 @@ export default function NetworkQualityAlert() {
             {/* Action Button */}
             <button
               onClick={handleDismiss}
-              className="w-full mt-4 bg-gradient-to-r from-orange-500 to-red-500
-                       text-white font-bold py-3 px-6 rounded-xl
-                       hover:from-orange-600 hover:to-red-600
-                       transform hover:scale-105 transition-all duration-200
-                       shadow-lg hover:shadow-xl"
+              className="w-full mt-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 px-6 rounded-xl hover:from-orange-600 hover:to-red-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               הבנתי, תודה!
             </button>
