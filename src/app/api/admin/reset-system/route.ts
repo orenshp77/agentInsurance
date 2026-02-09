@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { auth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
@@ -18,7 +17,7 @@ import bcrypt from 'bcryptjs'
 export async function POST(req: NextRequest) {
   try {
     // Verify authentication
-    const session = await getServerSession(authOptions)
+    const session = await auth()
 
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json(
@@ -57,7 +56,19 @@ export async function POST(req: NextRequest) {
       })
 
       // Ensure we have an admin user
-      const adminPassword = await bcrypt.hash('admin123', 10)
+      const adminPasswordPlain = process.env.SEED_ADMIN_PASSWORD
+
+      if (!adminPasswordPlain) {
+        throw new Error(
+          'SECURITY ERROR: SEED_ADMIN_PASSWORD environment variable is required!'
+        )
+      }
+
+      if (adminPasswordPlain.length < 12) {
+        throw new Error('SECURITY ERROR: Admin password must be at least 12 characters long!')
+      }
+
+      const adminPassword = await bcrypt.hash(adminPasswordPlain, 10)
       const admin = await tx.user.upsert({
         where: { email: 'admin@agentpro.com' },
         update: {
@@ -132,7 +143,7 @@ export async function POST(req: NextRequest) {
  */
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await auth()
 
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json(
