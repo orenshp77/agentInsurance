@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/src/lib/prisma';
-import { sendEmail } from '@/src/lib/email';
-import { passwordResetSuccessEmail } from '@/src/lib/email-templates';
+import { prisma } from '@/lib/prisma';
+import { sendEmail } from '@/lib/email';
+import { passwordResetSuccessEmail } from '@/lib/email-templates';
+import { validatePassword } from '@/lib/password-validator';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
@@ -15,10 +16,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // בדיקת תקינות הסיסמה
-    if (password.length < 6) {
+    // SECURITY: Validate password strength (12+ chars, uppercase, lowercase, numbers, special chars)
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
       return NextResponse.json(
-        { error: 'הסיסמה חייבת להכיל לפחות 6 תווים' },
+        { error: validation.errors.join('. ') },
         { status: 400 }
       );
     }

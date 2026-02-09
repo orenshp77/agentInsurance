@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
+import { validatePassword } from '@/lib/password-validator'
 
 // GET - Get single user
 export async function GET(
@@ -140,7 +141,19 @@ export async function PUT(
     if (name) updateData.name = name
     if (phone !== undefined) updateData.phone = phone
     if (idNumber !== undefined) updateData.idNumber = idNumber
-    if (password) updateData.password = await bcrypt.hash(password, 10)
+
+    // SECURITY: Validate password strength if changing password
+    if (password) {
+      const validation = validatePassword(password)
+      if (!validation.isValid) {
+        return NextResponse.json(
+          { error: validation.errors.join('. ') },
+          { status: 400 }
+        )
+      }
+      updateData.password = await bcrypt.hash(password, 10)
+    }
+
     if (logoUrl !== undefined) updateData.logoUrl = logoUrl
 
     const user = await prisma.user.update({

@@ -33,7 +33,21 @@ async function main() {
 
   // Ensure we have an admin user
   console.log('👤 יוצר/מעדכן משתמש מנהל...')
-  const adminPassword = await bcrypt.hash('admin123', 10)
+  const adminPasswordPlain = process.env.SEED_ADMIN_PASSWORD
+
+  if (!adminPasswordPlain) {
+    throw new Error(
+      '🔒 SECURITY ERROR: SEED_ADMIN_PASSWORD environment variable is required!\n' +
+      'Please set a strong password in your .env file:\n' +
+      'SEED_ADMIN_PASSWORD="YourStrongPasswordHere!@#123"\n'
+    )
+  }
+
+  if (adminPasswordPlain.length < 12) {
+    throw new Error('🔒 SECURITY ERROR: Admin password must be at least 12 characters long!')
+  }
+
+  const adminPassword = await bcrypt.hash(adminPasswordPlain, 10)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@agentpro.com' },
     update: {
@@ -69,8 +83,9 @@ async function main() {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('🔑 פרטי התחברות למנהל:')
   console.log(`   Email: ${admin.email}`)
-  console.log(`   Password: admin123`)
+  console.log(`   Password: [Set from SEED_ADMIN_PASSWORD env variable]`)
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  console.log('⚠️  IMPORTANT: Keep your admin password secure!')
   console.log('🎯 המערכת מוכנה לפרזנטציה!')
 }
 

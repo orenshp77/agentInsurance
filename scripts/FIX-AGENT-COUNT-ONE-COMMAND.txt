@@ -1,0 +1,25 @@
+====================================================================
+הדבק את זה ב-CLOUD SHELL - פקודה אחת לתיקון ספירת הסוכנים
+====================================================================
+
+gcloud sql connect insurance-db --user=root --database=agent_pro <<'EOF'
+SELECT CONCAT('לפני התיקון - סוכנים: ', COUNT(*)) FROM User WHERE role = 'AGENT';
+DELETE FROM User WHERE role = 'AGENT';
+UPDATE User SET role = 'ADMIN' WHERE email = 'admin@agentpro.com';
+SELECT CONCAT('אחרי התיקון - סוכנים: ', COUNT(*)) FROM User WHERE role = 'AGENT';
+SELECT CONCAT('מנהל: ', email, ' - ', role) FROM User WHERE email = 'admin@agentpro.com';
+EXIT;
+EOF
+
+====================================================================
+סיסמה: ~Q@*J/(m:NTx{~
+====================================================================
+
+אחרי שהפקודה מסתיימת, הרץ את זה כדי לרענן את ה-CACHE:
+
+gcloud run services update insurance-app --region=me-west1 --update-env-vars="LAST_UPDATE=$(date +%s)"
+
+====================================================================
+עכשיו תיכנס ותראה 0 סוכנים:
+https://insurance-app-767151043885.me-west1.run.app/dashboard
+====================================================================

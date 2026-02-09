@@ -73,9 +73,11 @@ function checkRateLimit(
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Only rate limit API routes
+  // Add security headers to all responses (including non-API routes)
   if (!pathname.startsWith('/api')) {
-    return NextResponse.next()
+    const response = NextResponse.next()
+    addSecurityHeaders(response)
+    return response
   }
 
   // Skip rate limiting for health checks
@@ -134,9 +136,63 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('X-RateLimit-Remaining', String(remaining))
 
+  // Add security headers
+  addSecurityHeaders(response)
+
+  return response
+}
+
+// SECURITY: Add comprehensive security headers
+function addSecurityHeaders(response: NextResponse) {
+  // Prevent clickjacking attacks
+  response.headers.set('X-Frame-Options', 'DENY')
+
+  // Prevent MIME type sniffing
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+
+  // Enable XSS protection
+  response.headers.set('X-XSS-Protection', '1; mode=block')
+
+  // Referrer policy - don't leak URLs to external sites
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+  // Permissions policy - disable unnecessary browser features
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+  )
+
+  // HSTS - Force HTTPS for 1 year (only in production)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    )
+  }
+
+  // Content Security Policy (CSP) - Prevent XSS attacks
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js requires unsafe-inline/eval
+    "style-src 'self' 'unsafe-inline'", // Tailwind requires unsafe-inline
+    "img-src 'self' data: https: blob:", // Allow images from GCS and data URIs
+    "font-src 'self' data:",
+    "connect-src 'self' https://storage.googleapis.com", // API calls
+    "frame-ancestors 'none'", // Same as X-Frame-Options: DENY
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "upgrade-insecure-requests", // Auto-upgrade HTTP to HTTPS
+  ]
+
+  response.headers.set('Content-Security-Policy', cspDirectives.join('; '))
+
   return response
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: [
+    // Match all routes except Next.js internals and static files
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
 }

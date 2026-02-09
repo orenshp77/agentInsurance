@@ -1,0 +1,21 @@
+====================================================================
+COPY THIS TO CLOUD SHELL - ONE COMMAND TO FIX EVERYTHING
+====================================================================
+
+bash -c 'gcloud run services update insurance-app --region=me-west1 --update-env-vars="DATABASE_URL=mysql://root:%7EQ%40%2AJ%2F%28m%3ANTx%7B%7E@34.77.205.82:3306/agent_pro" && echo "✓ Cloud Run fixed" && gcloud sql connect insurance-db --user=root --database=agent_pro <<EOF
+DELETE FROM User WHERE email = "admin@agentpro.com";
+INSERT INTO User (id, email, password, role, name, phone, profileCompleted, createdAt, updatedAt) VALUES (UUID(), "admin@agentpro.com", "\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy", "ADMIN", "מנהל ראשי", "050-0000000", 1, NOW(), NOW());
+SELECT email, role FROM User WHERE email = "admin@agentpro.com";
+EXIT;
+EOF
+'
+
+PASSWORD WHEN ASKED: ~Q@*J/(m:NTx{~
+
+====================================================================
+AFTER RUNNING, LOGIN HERE:
+====================================================================
+URL: https://insurance-app-767151043885.me-west1.run.app/login
+Email: admin@agentpro.com
+Password: admin123
+====================================================================

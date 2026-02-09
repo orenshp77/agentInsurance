@@ -1,6 +1,6 @@
 const functions = require('@google-cloud/functions-framework');
 const nodemailer = require('nodemailer');
-const fetch = require('node-fetch');
+// Native fetch is available in Node.js 18+, no need to import
 const { Storage } = require('@google-cloud/storage');
 
 // Gmail configuration
@@ -9,7 +9,7 @@ const EMAIL_PASSWORD = 'omegoytwqxuzdoid';
 const ALERT_EMAIL = 'orenshp77@gmail.com';
 
 // Site configuration
-const SITE_URL = 'https://insurance-app-76715104388s.me-west1.run.app';
+const SITE_URL = 'https://insurance-app-767151043885.me-west1.run.app';
 const PROJECT_ID = 'insurance-app-486316';
 const DB_INSTANCE = 'insurance-db';
 
@@ -248,11 +248,11 @@ async function sendAlertEmail(results) {
   const issues = [];
 
   if (!results.siteHealth.ok) {
-    issues.push(`⚠️ האתר לא מגיב: ${results.siteHealth.message}`);
+    issues.push(`⚠️ האתר לא מגיב - יש לבדוק את שרת Cloud Run`);
   }
 
   if (!results.dbHealth.ok) {
-    issues.push(`⚠️ בעיה בחיבור למסד הנתונים: ${results.dbHealth.message}`);
+    issues.push(`⚠️ בעיה בחיבור למסד הנתונים - יש לבדוק את Cloud SQL`);
   }
 
   if (results.errors.length > 0) {
@@ -265,12 +265,15 @@ async function sendAlertEmail(results) {
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; direction: rtl; background-color: #f4f4f4; padding: 20px; }
-        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; }
-        .header { background: #dc2626; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        .issue { background: #fee2e2; border-right: 4px solid #dc2626; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-        .timestamp { color: #666; font-size: 14px; }
+        * { direction: rtl; text-align: right; }
+        body { font-family: Arial, sans-serif; direction: rtl; text-align: right; background-color: #f4f4f4; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; text-align: right; direction: rtl; }
+        .header { background: #dc2626; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; text-align: right; direction: rtl; }
+        .issue { background: #fee2e2; border-right: 4px solid #dc2626; border-left: none; padding: 15px; margin: 10px 0; border-radius: 5px; text-align: right; direction: rtl; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: right; direction: rtl; }
+        .timestamp { color: #666; font-size: 14px; direction: rtl; text-align: right; }
+        h1, h2, h3, p, ul, li, div, span { text-align: right; direction: rtl; }
+        ul { padding-right: 20px; padding-left: 0; }
       </style>
     </head>
     <body>
@@ -323,12 +326,14 @@ async function sendStatusEmail(results) {
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; direction: rtl; background-color: #f4f4f4; padding: 20px; }
-        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; }
-        .header { background: #10b981; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        .status-item { background: #f0fdf4; border-right: 4px solid #10b981; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-        .timestamp { color: white; font-size: 14px; }
+        * { direction: rtl; text-align: right; }
+        body { font-family: Arial, sans-serif; direction: rtl; text-align: right; background-color: #f4f4f4; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; text-align: right; direction: rtl; }
+        .header { background: #10b981; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; text-align: right; direction: rtl; }
+        .status-item { background: #f0fdf4; border-right: 4px solid #10b981; border-left: none; padding: 15px; margin: 10px 0; border-radius: 5px; text-align: right; direction: rtl; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; text-align: right; direction: rtl; }
+        .timestamp { color: white; font-size: 14px; direction: rtl; text-align: right; }
+        h1, h2, h3, p, ul, li, div, span, strong { text-align: right; direction: rtl; }
       </style>
     </head>
     <body>
@@ -388,10 +393,12 @@ async function sendCriticalErrorEmail(error) {
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; direction: rtl; background-color: #f4f4f4; padding: 20px; }
-        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; }
-        .header { background: #991b1b; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
-        .error { background: #fecaca; border-right: 4px solid #991b1b; padding: 15px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+        * { direction: rtl; text-align: right; }
+        body { font-family: Arial, sans-serif; direction: rtl; text-align: right; background-color: #f4f4f4; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto; text-align: right; direction: rtl; }
+        .header { background: #991b1b; color: white; padding: 20px; border-radius: 5px; margin-bottom: 20px; text-align: right; direction: rtl; }
+        .error { background: #fecaca; border-right: 4px solid #991b1b; border-left: none; padding: 15px; margin: 10px 0; border-radius: 5px; font-family: monospace; text-align: left; direction: ltr; }
+        h1, h2, h3, p, div, span { text-align: right; direction: rtl; }
       </style>
     </head>
     <body>

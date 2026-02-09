@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { serverLogInfo, serverLogWarn, serverLogError } from '@/lib/serverLogger'
+import { validatePassword } from '@/lib/password-validator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,19 @@ export async function POST(request: NextRequest) {
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: 'שם, אימייל וסיסמה הם שדות חובה' },
+        { status: 400 }
+      )
+    }
+
+    // SECURITY: Validate password strength
+    const validation = validatePassword(password)
+    if (!validation.isValid) {
+      serverLogWarn(`AUTH: Registration failed - weak password (${email})`, {
+        category: 'AUTH',
+        metadata: { email, errors: validation.errors }
+      })
+      return NextResponse.json(
+        { error: validation.errors.join('. ') },
         { status: 400 }
       )
     }

@@ -5,6 +5,7 @@ import { prisma } from './prisma'
 import { serverLogInfo, serverLogWarn } from './serverLogger'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true, // Required for Cloud Run and production deployments
   providers: [
     Credentials({
       name: 'credentials',

@@ -14,19 +14,32 @@ export async function uploadToGCS(
   const bucket = storage.bucket(BUCKET_NAME)
   const blob = bucket.file(fileName)
 
-  // Upload the file
+  // Upload the file (private - NOT public)
   await blob.save(file, {
     contentType,
     metadata: {
-      cacheControl: 'public, max-age=31536000', // Cache for 1 year
+      cacheControl: 'private, max-age=3600', // Cache for 1 hour only
     },
   })
 
-  // Bucket has uniform access control with allUsers:objectViewer
-  // so all objects are publicly readable - no need for makePublic()
+  // SECURITY: Files are now PRIVATE - no public access
+  // Return just the filename (not a URL)
+  // Frontend will request a signed URL through API
+  return fileName
+}
 
-  // Return the public URL
-  return `https://storage.googleapis.com/${BUCKET_NAME}/${fileName}`
+// SECURITY: Generate temporary signed URL (expires after 1 hour)
+export async function getSignedUrl(fileName: string): Promise<string> {
+  const bucket = storage.bucket(BUCKET_NAME)
+  const file = bucket.file(fileName)
+
+  const [url] = await file.getSignedUrl({
+    version: 'v4',
+    action: 'read',
+    expires: Date.now() + 60 * 60 * 1000, // 1 hour from now
+  })
+
+  return url
 }
 
 export async function deleteFromGCS(fileName: string): Promise<void> {

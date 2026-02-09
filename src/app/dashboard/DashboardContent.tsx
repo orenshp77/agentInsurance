@@ -246,7 +246,9 @@ export default function DashboardContent() {
       const timestamp = Date.now()
 
       if (session?.user?.role !== 'CLIENT') {
-        const usersRes = await fetch(`/api/users?role=CLIENT${agentParam}&_t=${timestamp}`)
+        // Admin sees AGENTS, Agent sees CLIENTS
+        const roleToFetch = session?.user?.role === 'ADMIN' ? 'AGENT' : 'CLIENT'
+        const usersRes = await fetch(`/api/users?role=${roleToFetch}${agentParam}&_t=${timestamp}`)
         const usersData = await usersRes.json()
         const users = Array.isArray(usersData) ? usersData : usersData.users || []
         setStats((prev) => ({ ...prev, users: users.length || 0 }))
