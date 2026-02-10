@@ -48,11 +48,12 @@ export function useNetworkQuality(): NetworkInfo {
         const { downlink, effectiveType, rtt } = connection
 
         // Determine quality based on connection metrics
+        // חשוב: רק effectiveType אמין לזיהוי בעיית קליטה אמיתית
+        // rtt ו-downlink יכולים להיות מושפעים מעומס השרת ולא רק מקליטה
         let quality: NetworkQuality = 'good'
 
-        if (effectiveType === 'slow-2g' || (rtt && rtt > 2000) || (downlink && downlink < 0.5)) {
-          quality = 'poor'
-        } else if (effectiveType === '2g' || effectiveType === '3g' || (rtt && rtt > 500) || (downlink && downlink < 2)) {
+        // רק רשת סלולרית גרועה באמת (2g/slow-2g) נחשבת כ"poor"
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
           quality = 'poor'
         } else if (effectiveType === '4g' && downlink && downlink >= 10) {
           quality = 'excellent'

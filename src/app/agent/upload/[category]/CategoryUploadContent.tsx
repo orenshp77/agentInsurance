@@ -102,11 +102,17 @@ export default function CategoryUploadContent({
     if (session?.user) {
       fetchClients()
     }
-  }, [session])
+  }, [session, viewAsId])
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/users?role=CLIENT')
+      // When admin views as agent, filter by that agent's clients
+      const baseUrl = viewAsId
+        ? `/api/users?role=CLIENT&agentId=${viewAsId}`
+        : '/api/users?role=CLIENT'
+      // Add timestamp to prevent browser caching
+      const url = `${baseUrl}&_t=${Date.now()}`
+      const res = await fetch(url, { cache: 'no-store' })
       if (res.ok) {
         const data = await res.json()
         // Handle both old array format and new paginated format

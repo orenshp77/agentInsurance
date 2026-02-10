@@ -94,6 +94,16 @@ const getFileColor = (fileType: string) => {
   }
 }
 
+// Get proxy URL for file (to bypass CORS issues with GCS)
+const getFileProxyUrl = (file: FileItem) => {
+  // If URL is already a full URL (http/https), use it directly
+  if (file.url.startsWith('http')) {
+    return file.url
+  }
+  // Otherwise, use the proxy endpoint
+  return `/api/file-proxy?filename=${encodeURIComponent(file.url)}`
+}
+
 interface ViewAsUser {
   id: string
   name: string
@@ -502,13 +512,13 @@ export default function ClientFolderFilesContent({
                     {/* Image Preview */}
                     {isImage && (
                       <a
-                        href={file.url}
+                        href={getFileProxyUrl(file)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block relative h-40 overflow-hidden"
                       >
                         <img
-                          src={file.url}
+                          src={getFileProxyUrl(file)}
                           alt={file.fileName}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
@@ -532,7 +542,7 @@ export default function ClientFolderFilesContent({
                         {/* Actions */}
                         <div className="flex gap-1">
                           <a
-                            href={file.url}
+                            href={getFileProxyUrl(file)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-2 rounded-lg hover:bg-success/20 transition-all"
@@ -541,7 +551,7 @@ export default function ClientFolderFilesContent({
                             <Eye size={18} className="text-success" />
                           </a>
                           <a
-                            href={file.url}
+                            href={getFileProxyUrl(file)}
                             download={file.fileName}
                             className="p-2 rounded-lg hover:bg-primary/20 transition-all"
                             title="הורד"
@@ -574,7 +584,7 @@ export default function ClientFolderFilesContent({
                       {/* PDF View Button */}
                       {isPdf && (
                         <a
-                          href={file.url}
+                          href={getFileProxyUrl(file)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-4 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 text-red-400 hover:from-red-500/30 hover:to-orange-500/30 transition-all group"

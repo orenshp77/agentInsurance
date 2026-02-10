@@ -96,8 +96,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Convert logoUrl filenames to proxy URLs (for CORS-free local development)
+    const usersWithProxyLogos = users.map(user => {
+      const logoUrl = 'logoUrl' in user ? (user.logoUrl as string | null) : null
+      return {
+        ...user,
+        logoUrl: logoUrl && typeof logoUrl === 'string' && !logoUrl.startsWith('http')
+          ? `/api/logo-proxy?filename=${encodeURIComponent(logoUrl)}`
+          : logoUrl,
+      }
+    })
+
     return NextResponse.json(
-      { users, total, limit, offset },
+      { users: usersWithProxyLogos, total, limit, offset },
       {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate',

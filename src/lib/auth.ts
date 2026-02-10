@@ -18,9 +18,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        })
+        let user
+        try {
+          user = await prisma.user.findUnique({
+            where: { email: credentials.email as string },
+          })
+        } catch (dbError) {
+          serverLogWarn(`AUTH: Database error during login (${credentials.email})`, {
+            category: 'AUTH',
+            metadata: { attemptedEmail: credentials.email, error: String(dbError) },
+          })
+          throw new Error('SYSTEM_ERROR')
+        }
 
         if (!user) {
           serverLogWarn(`AUTH: Login failed - user not found (${credentials.email})`, {
@@ -30,10 +39,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        )
+        let isPasswordValid
+        try {
+          isPasswordValid = await bcrypt.compare(
+            credentials.password as string,
+            user.password
+          )
+        } catch (bcryptError) {
+          serverLogWarn(`AUTH: Bcrypt error during login (${credentials.email})`, {
+            category: 'AUTH',
+            metadata: { attemptedEmail: credentials.email, error: String(bcryptError) },
+          })
+          throw new Error('SYSTEM_ERROR')
+        }
 
         if (!isPasswordValid) {
           serverLogWarn(`AUTH: Login failed - wrong password (${credentials.email})`, {

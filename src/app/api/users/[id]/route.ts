@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 import { validatePassword } from '@/lib/password-validator'
+import { getSignedUrl } from '@/lib/gcs'
 
 // GET - Get single user
 export async function GET(
@@ -63,7 +64,15 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(user)
+    // Convert logoUrl filename to proxy URL for local development (avoids CORS issues)
+    // In production, signed URLs work fine, but locally we need to proxy through our server
+    let logoUrl = user.logoUrl
+    if (logoUrl && !logoUrl.startsWith('http')) {
+      // Use proxy endpoint to avoid CORS issues
+      logoUrl = `/api/logo-proxy?filename=${encodeURIComponent(logoUrl)}`
+    }
+
+    return NextResponse.json({ ...user, logoUrl })
   } catch (error) {
     console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

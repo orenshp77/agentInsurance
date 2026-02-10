@@ -83,6 +83,16 @@ const getFileColor = (fileType: string) => {
   }
 }
 
+// Get proxy URL for file (to bypass CORS issues with GCS)
+const getFileProxyUrl = (file: FileItem) => {
+  // If URL is already a full URL (http/https), use it directly
+  if (file.url.startsWith('http')) {
+    return file.url
+  }
+  // Otherwise, use the proxy endpoint
+  return `/api/file-proxy?filename=${encodeURIComponent(file.url)}`
+}
+
 export default function FolderFilesContent({
   params,
 }: {
@@ -599,7 +609,7 @@ export default function FolderFilesContent({
                           onClick={() => setPreviewFile(file)}
                         >
                           <img
-                            src={file.url}
+                            src={getFileProxyUrl(file)}
                             alt={file.fileName}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           />
@@ -613,7 +623,7 @@ export default function FolderFilesContent({
                       ) : (
                         <div
                           className="h-40 flex items-center justify-center bg-gradient-to-br from-primary/5 to-accent/5 cursor-pointer"
-                          onClick={() => window.open(file.url, '_blank')}
+                          onClick={() => window.open(getFileProxyUrl(file), '_blank')}
                         >
                           <div className={`w-20 h-20 rounded-2xl flex items-center justify-center ${colorClass}`}>
                             <Icon size={40} />
@@ -644,7 +654,7 @@ export default function FolderFilesContent({
                         {/* Actions */}
                         <div className="flex items-center gap-1 pt-2 border-t border-primary/10">
                           <button
-                            onClick={() => window.open(file.url, '_blank')}
+                            onClick={() => window.open(getFileProxyUrl(file), '_blank')}
                             className="flex-1 flex items-center justify-center gap-1 p-2 hover:bg-success/10 rounded-lg transition-all text-success text-sm"
                             title="צפה"
                           >
@@ -652,7 +662,7 @@ export default function FolderFilesContent({
                             <span className="hidden sm:inline">צפה</span>
                           </button>
                           <a
-                            href={file.url}
+                            href={getFileProxyUrl(file)}
                             download={file.fileName}
                             className="flex-1 flex items-center justify-center gap-1 p-2 hover:bg-primary/10 rounded-lg transition-all text-primary text-sm"
                             title="הורד"
@@ -735,7 +745,7 @@ export default function FolderFilesContent({
               <X size={24} className="text-white" />
             </button>
             <img
-              src={previewFile.url}
+              src={getFileProxyUrl(previewFile)}
               alt={previewFile.fileName}
               className="max-w-full max-h-[90vh] object-contain rounded-lg"
               onClick={(e) => e.stopPropagation()}
@@ -743,7 +753,7 @@ export default function FolderFilesContent({
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/10 backdrop-blur-xl rounded-full px-4 py-2">
               <span className="text-white text-sm">{previewFile.fileName}</span>
               <a
-                href={previewFile.url}
+                href={getFileProxyUrl(previewFile)}
                 download={previewFile.fileName}
                 className="p-2 hover:bg-white/20 rounded-full transition-all"
                 onClick={(e) => e.stopPropagation()}

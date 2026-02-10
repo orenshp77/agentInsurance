@@ -53,16 +53,30 @@ const landscapes = [
   },
 ]
 
-// Generate random stars
+// Generate stars with fixed positions (seeded by index to avoid hydration mismatch)
 const generateStars = (count: number) => {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    left: Math.random() * 100,
-    top: Math.random() * 60,
-    size: Math.random() * 2 + 1,
-    delay: Math.random() * 3,
-    duration: Math.random() * 2 + 2,
-  }))
+  return Array.from({ length: count }, (_, i) => {
+    // Use deterministic values based on index instead of Math.random()
+    const seed = (i * 9301 + 49297) % 233280
+    const rnd1 = seed / 233280
+    const seed2 = (seed * 9301 + 49297) % 233280
+    const rnd2 = seed2 / 233280
+    const seed3 = (seed2 * 9301 + 49297) % 233280
+    const rnd3 = seed3 / 233280
+    const seed4 = (seed3 * 9301 + 49297) % 233280
+    const rnd4 = seed4 / 233280
+    const seed5 = (seed4 * 9301 + 49297) % 233280
+    const rnd5 = seed5 / 233280
+
+    return {
+      id: i,
+      left: rnd1 * 100,
+      top: rnd2 * 60,
+      size: rnd3 * 2 + 1,
+      delay: rnd4 * 3,
+      duration: rnd5 * 2 + 2,
+    }
+  })
 }
 
 function LoginContent() {
@@ -112,8 +126,13 @@ function LoginContent() {
       })
 
       if (result?.error) {
-        logger.warn('AUTH: Login failed - invalid credentials', { category: 'AUTH', email })
-        showError('אימייל או סיסמה שגויים')
+        if (result.error === 'SYSTEM_ERROR' || result.error.includes('SYSTEM_ERROR')) {
+          logger.error('AUTH: System error during login', undefined, { category: 'AUTH', email })
+          showError('בעיית מערכת זמנית בבדיקה')
+        } else {
+          logger.warn('AUTH: Login failed - invalid credentials', { category: 'AUTH', email })
+          showError('אימייל או סיסמה שגויים')
+        }
       } else {
         logger.info('AUTH: Login success - redirecting to dashboard', { category: 'AUTH', email })
         router.push('/dashboard')
@@ -121,7 +140,7 @@ function LoginContent() {
       }
     } catch (err) {
       logger.error('AUTH: Login error', err instanceof Error ? err : undefined, { category: 'AUTH', email })
-      showError('שגיאה בהתחברות')
+      showError('בעיית מערכת זמנית בבדיקה')
     } finally {
       setLoading(false)
     }

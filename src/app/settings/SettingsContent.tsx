@@ -10,6 +10,7 @@ import Swal from 'sweetalert2'
 import { showSuccess, showError } from '@/lib/swal'
 import { useLogger } from '@/hooks/useLogger'
 import { withFreshCacheBust } from '@/lib/utils'
+import ImageCropper, { ImageCropperRef } from '@/components/ui/ImageCropper'
 
 interface UserData {
   id: string
@@ -28,7 +29,7 @@ export default function SettingsContent() {
   const searchParams = useSearchParams()
   const isWelcome = searchParams.get('welcome') === 'true'
   const viewAsId = searchParams.get('viewAs')
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageCropperRef = useRef<ImageCropperRef>(null)
   const logger = useLogger('Settings')
 
   // Determine if viewing as another user (admin viewing agent's settings)
@@ -50,6 +51,8 @@ export default function SettingsContent() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [welcomeAlertShown, setWelcomeAlertShown] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -222,22 +225,14 @@ export default function SettingsContent() {
     }
   }
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleImageCropped = (previewUrl: string, file: File) => {
+    setLogoPreviewUrl(previewUrl)
+    setLogoFile(file)
+    // Auto-upload after cropping
+    uploadCroppedLogo(file)
+  }
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      showError('יש להעלות קובץ תמונה בלבד')
-      return
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      showError('גודל הקובץ המקסימלי הוא 5MB')
-      return
-    }
-
+  const uploadCroppedLogo = async (file: File) => {
     setUploading(true)
     logger.info('FILE_OP: Logo upload started', { category: 'FILE_OP', fileSize: file.size, fileType: file.type })
     try {
@@ -255,12 +250,14 @@ export default function SettingsContent() {
       })
 
       if (res.ok) {
-        const data = await res.json()
-        setUserData(prev => prev ? { ...prev, logoUrl: data.url } : null)
         // Update session so logoUrl is reflected in JWT token immediately
         await updateSession()
+        // Refetch user data to get the signed URL (don't set logoUrl from upload response - it's just a filename)
+        await fetchUserData()
         logger.info('FILE_OP: Logo upload success', { category: 'FILE_OP' })
         showSuccess('הלוגו הועלה בהצלחה')
+        setLogoPreviewUrl(null)
+        setLogoFile(null)
       } else {
         const error = await res.json()
         logger.error('FILE_OP: Logo upload failed', undefined, { category: 'FILE_OP', status: res.status, errorMessage: error.message })
@@ -381,45 +378,37 @@ export default function SettingsContent() {
                   {isAdmin ? 'תמונת פרופיל' : 'לוגו'}
                 </h2>
 
-                <div className="flex flex-col items-center gap-4">
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`w-32 h-32 rounded-full overflow-hidden border-4 cursor-pointer transition-all hover:scale-105 ${
-                      isAdmin ? 'border-emerald-500/30 hover:border-emerald-500/50' : isAgent ? 'border-blue-500/30 hover:border-blue-500/50' : 'border-primary/30 hover:border-primary/50'
-                    } ${uploading ? 'opacity-50' : ''}`}
-                  >
-                    {uploading ? (
-                      <div className="w-full h-full flex items-center justify-center bg-white/10">
-                        <Loader2 size={32} className={`animate-spin ${isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-primary'}`} />
-                      </div>
-                    ) : userData?.logoUrl ? (
-                      <img
-                        src={withFreshCacheBust(userData.logoUrl)}
-                        alt="לוגו"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-white/10">
-                        <Camera size={32} className={isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-primary'} />
-                        <span className="text-xs text-foreground-muted mt-2">{isAdmin ? 'העלה תמונה' : 'העלה לוגו'}</span>
-                      </div>
-                    )}
+                {/* Show current logo if exists */}
+                {userData?.logoUrl && !logoPreviewUrl && (
+                  <div className="flex flex-col items-center gap-4 mb-4">
+                    <div className={`w-32 h-32 rounded-full overflow-hidden border-4 ${
+                      isAdmin ? 'border-emerald-500/30' : isAgent ? 'border-blue-500/30' : 'border-primary/30'
+                    } ${uploading ? 'opacity-50' : ''}`}>
+                      {uploading ? (
+                        <div className="w-full h-full flex items-center justify-center bg-white/10">
+                          <Loader2 size={32} className={`animate-spin ${isAdmin ? 'text-emerald-400' : isAgent ? 'text-blue-400' : 'text-primary'}`} />
+                        </div>
+                      ) : (
+                        <img
+                          src={withFreshCacheBust(userData.logoUrl)}
+                          alt="לוגו"
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground-muted">לוגו נוכחי - להחלפה העלה תמונה חדשה למטה</p>
                   </div>
+                )}
 
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="hidden"
-                  />
-
-                  <p className="text-sm text-foreground-muted text-center">
-                    לחץ על העיגול כדי להעלות או לשנות {isAdmin ? 'תמונת פרופיל' : 'לוגו'}
-                    <br />
-                    <span className="text-xs">תמונה עד 5MB (JPG, PNG, GIF)</span>
-                  </p>
-                </div>
+                {/* ImageCropper for uploading new logo */}
+                <ImageCropper
+                  ref={imageCropperRef}
+                  onImageCropped={handleImageCropped}
+                  aspectRatio={1}
+                  circularCrop={true}
+                  maxWidth={400}
+                  maxHeight={400}
+                />
               </div>
             </div>
           )}
