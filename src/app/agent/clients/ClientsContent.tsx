@@ -414,13 +414,13 @@ export default function ClientsContent() {
 
   // Handle back navigation - go to agent dashboard
   const handleGoBack = () => {
-    // Priority: viewAs > agentId > go back in history
+    // Priority: viewAs > agentId > current agent's dashboard
     const targetAgentId = viewAsId || agentId
     if (targetAgentId) {
       router.push(`/dashboard?agentId=${targetAgentId}`)
     } else {
-      // If no agent context, just go back
-      router.back()
+      // Go to agent's own dashboard
+      router.push('/dashboard')
     }
   }
 

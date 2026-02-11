@@ -868,8 +868,6 @@ export default function ClientFoldersContent() {
                         className="w-full h-full object-cover"
                         style={{
                           borderRadius: '50%',
-                          maskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
-                          WebkitMaskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
                         }}
                         onError={(e) => {
                           console.error('Logo failed to load:', displayLogoUrl)
@@ -909,8 +907,6 @@ export default function ClientFoldersContent() {
                         className="w-full h-full object-cover"
                         style={{
                           borderRadius: '50%',
-                          maskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
-                          WebkitMaskImage: 'radial-gradient(circle, black 50%, transparent 80%)',
                         }}
                       />
                     </div>
