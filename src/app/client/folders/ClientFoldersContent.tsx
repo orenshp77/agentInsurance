@@ -464,37 +464,105 @@ export default function ClientFoldersContent() {
   }
 
   return (
-    <AppLayout showHeader={false} showFooter={false}>
-      <div className="min-h-screen pb-32 relative overflow-x-hidden">
-        {/* Full Screen Dynamic Background */}
-        {showBackground && (
-          <div className="fixed inset-0 z-0">
-            <div className={`absolute inset-0 transition-opacity duration-700 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
-              <img
-                src={landscapes[currentBgIndex].image}
-                alt={landscapes[currentBgIndex].name}
-                className="w-full h-full object-cover"
-              />
-              {/* Dark overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-[#0d1117]/80 to-[#0d1117]" />
-            </div>
+    <>
+      {/* FIXED Background - 100% full screen, doesn't scroll */}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: 0,
+        }}
+      >
+        {showBackground ? (
+          <div
+            className={`transition-opacity duration-700 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            {/* Background image - full screen cover */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                width: '100%',
+                height: '100%',
+                backgroundImage: `url(${landscapes[currentBgIndex].image})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }}
+            />
+            {/* Dark overlay */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(13,17,23,0.8), rgba(13,17,23,1))',
+              }}
+            />
+          </div>
+        ) : (
+          /* BMW-style high-tech dark gradient background */
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: '100%',
+              height: '100%',
+              background: 'linear-gradient(180deg, #0a0a0f 0%, #141419 15%, #1e1e26 30%, #2a2a35 45%, #1e1e26 60%, #141419 80%, #0a0a0f 100%)',
+            }}
+          >
+            {/* Subtle silver shine in the middle */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '20%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '100%',
+                height: '40%',
+                background: 'radial-gradient(ellipse 80% 50% at 50% 50%, rgba(180, 180, 195, 0.08) 0%, transparent 70%)',
+              }}
+            />
+            {/* Top edge highlight */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '1px',
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)',
+              }}
+            />
           </div>
         )}
+      </div>
 
-        {/* Background Controls */}
-        <div className="fixed top-20 left-4 z-40">
-          <button
-            onClick={() => setShowBackground(!showBackground)}
-            className={`p-2.5 rounded-full transition-all ${
-              showBackground
-                ? 'bg-purple-600 hover:bg-purple-700'
-                : 'bg-purple-600/60 hover:bg-purple-600'
-            }`}
-            title={showBackground ? 'הסתר רקע' : 'הצג רקע'}
-          >
-            <Cloud size={18} className="text-white" />
-          </button>
-        </div>
+      <AppLayout showHeader={false} showFooter={false}>
+        {/* Scrollable Content Layer */}
+        <div className="min-h-screen pb-32 relative overflow-x-hidden" style={{ zIndex: 10 }}>
 
         {/* Agent/Admin Viewing Mode Banner */}
         {viewAsClientId && (session?.user?.role === 'AGENT' || session?.user?.role === 'ADMIN') && (
@@ -583,6 +651,22 @@ export default function ClientFoldersContent() {
 
               {/* Right Side Controls */}
               <div className="flex items-center gap-3">
+                {/* Background Toggle */}
+                <button
+                  onClick={() => setShowBackground(!showBackground)}
+                  className="p-2.5 rounded-xl transition-all"
+                  style={showBackground ? {
+                    background: 'linear-gradient(135deg, #9333ea, #7c3aed)',
+                  } : {
+                    background: 'linear-gradient(135deg, #4b5563, #374151)',
+                    border: '1px solid rgba(156, 163, 175, 0.4)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.3)',
+                  }}
+                  title={showBackground ? 'הסתר רקע' : 'הצג רקע'}
+                >
+                  <Cloud size={20} className="text-white" />
+                </button>
+
                 {/* Notifications Bell */}
                 <div className="relative">
                   <button
@@ -1382,5 +1466,6 @@ export default function ClientFoldersContent() {
         }
       `}</style>
     </AppLayout>
+    </>
   )
 }

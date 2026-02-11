@@ -64,6 +64,7 @@ export default function AdminAgentsPage() {
   const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null)
   const imageCropperRef = useRef<ImageCropperRef>(null)
   const [showMenu, setShowMenu] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [orphanedClientsCount, setOrphanedClientsCount] = useState(0)
   const [agentSearchQuery, setAgentSearchQuery] = useState('')
@@ -148,6 +149,7 @@ export default function AdminAgentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitting(true)
 
     try {
       // Check if there's a pending image in the cropper and crop it first
@@ -205,6 +207,8 @@ export default function AdminAgentsPage() {
       fetchAgents()
     } catch (error) {
       showError(error instanceof Error ? error.message : 'שגיאה בשמירת הסוכן')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -669,9 +673,16 @@ export default function AdminAgentsPage() {
         {/* Modal */}
         <Modal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => !submitting && setIsModalOpen(false)}
           title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'}
         >
+          {submitting ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
+              <p className="text-xl font-medium text-emerald-400">מחברים אותכם...</p>
+              <p className="text-sm text-foreground-muted mt-2">אנא המתן</p>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Logo Upload */}
             <div>
@@ -720,6 +731,7 @@ export default function AdminAgentsPage() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
+              autoComplete="off"
             />
             <Input
               label="אימייל"
@@ -728,6 +740,7 @@ export default function AdminAgentsPage() {
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
               dir="ltr"
+              autoComplete="off"
             />
             <Input
               label={editingAgent ? 'סיסמה חדשה (השאר ריק לשמירה)' : 'סיסמה'}
@@ -743,12 +756,14 @@ export default function AdminAgentsPage() {
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               dir="ltr"
+              autoComplete="off"
             />
             <Input
               label="תעודת זהות"
               value={formData.idNumber}
               onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
               dir="ltr"
+              autoComplete="off"
             />
 
             <div className="flex gap-4 pt-4">
@@ -765,6 +780,7 @@ export default function AdminAgentsPage() {
               </Button>
             </div>
           </form>
+          )}
         </Modal>
       </div>
 

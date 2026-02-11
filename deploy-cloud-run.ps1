@@ -115,6 +115,6 @@ Write-Host ""
 Write-Host "📋 Cloud Run Console:" -ForegroundColor Yellow
 Write-Host "   https://console.cloud.google.com/run/detail/$REGION/$SERVICE_NAME"
 Write-Host ""
-Write-Host "🧪 Test the application:" -ForegroundColor Yellow
+Write-Host "Test the application:" -ForegroundColor Yellow
 Write-Host "   Start-Process $SERVICE_URL"
 Write-Host ""

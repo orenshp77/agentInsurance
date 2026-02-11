@@ -164,7 +164,10 @@ export default function DashboardContent() {
       router.push('/login')
     }
     // Redirect new users (profile not completed) to settings page
-    if (status === 'authenticated' && session?.user && !session.user.profileCompleted && session.user.role !== 'ADMIN') {
+    // Skip if justCompleted flag is present (just finished welcome flow) or sessionStorage indicates completed
+    const justCompleted = searchParams.get('justCompleted') === 'true'
+    const sessionStorageCompleted = typeof window !== 'undefined' && sessionStorage.getItem('profileCompleted') === 'true'
+    if (status === 'authenticated' && session?.user && !session.user.profileCompleted && session.user.role !== 'ADMIN' && !justCompleted && !sessionStorageCompleted) {
       router.push('/settings?welcome=true')
       return
     }
@@ -572,7 +575,8 @@ export default function DashboardContent() {
 
                         <button
                           onClick={() => {
-                            router.push(isViewingAs ? `/settings?viewAs=${viewAsId}` : '/settings')
+                            const targetId = viewAsId || agentId
+                            router.push(isViewingAs && targetId ? `/settings?viewAs=${targetId}` : '/settings')
                             setShowMenu(false)
                           }}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right ${isAdmin ? 'hover:bg-emerald-500/10' : isAgent ? 'hover:bg-blue-500/10' : 'hover:bg-white/10'}`}
@@ -629,7 +633,10 @@ export default function DashboardContent() {
           {isAgent && (
             <div className="flex flex-col items-center justify-center mb-8 animate-fade-in-up">
               <div
-                onClick={!agentLogo ? () => router.push(isViewingAs ? `/settings?viewAs=${viewAsId}` : '/settings') : undefined}
+                onClick={!agentLogo ? () => {
+                  const targetId = viewAsId || agentId
+                  router.push(isViewingAs && targetId ? `/settings?viewAs=${targetId}` : '/settings')
+                } : undefined}
                 className={`w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-blue-500/30 shadow-blue-500/20 ${!agentLogo ? 'cursor-pointer hover:scale-105' : ''} transition-transform ${!agentLogo ? 'flex items-center justify-center' : ''}`}
                 title={!agentLogo ? 'לחץ להעלאת לוגו' : undefined}
               >

@@ -28,7 +28,8 @@ export default function SettingsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isWelcome = searchParams.get('welcome') === 'true'
-  const viewAsId = searchParams.get('viewAs')
+  const viewAsParam = searchParams.get('viewAs')
+  const viewAsId = viewAsParam && viewAsParam !== 'null' ? viewAsParam : null
   const imageCropperRef = useRef<ImageCropperRef>(null)
   const logger = useLogger('Settings')
 
@@ -199,21 +200,24 @@ export default function SettingsContent() {
       }
 
       logger.info('USER_ACTION: Profile saved successfully', { category: 'USER_ACTION', isWelcome, isViewingAsOther, targetUserId })
-      showSuccess(isViewingAsOther ? 'הפרטים נשמרו בהצלחה' : isWelcome ? 'ברוך הבא! הפרופיל הושלם בהצלחה' : 'הפרטים נשמרו בהצלחה')
 
       // Redirect to appropriate page after saving
       if (isWelcome && !isViewingAsOther) {
         // Use userData.role since session might not be updated yet
         const userRole = userData?.role || session?.user?.role
+        // Mark profile as completed in sessionStorage to prevent redirect loop
+        sessionStorage.setItem('profileCompleted', 'true')
         if (userRole === 'CLIENT') {
-          sessionStorage.setItem('profileCompleted', 'true')
-          window.location.href = '/client/folders?justCompleted=true'
+          // Use replace to prevent back button returning to settings
+          window.location.replace('/client/folders?justCompleted=true')
         } else {
-          window.location.href = '/dashboard'
+          // For agents, redirect to dashboard with justCompleted flag
+          window.location.replace('/dashboard?justCompleted=true')
         }
         // Don't set saving to false - we're navigating away
         return
       } else {
+        showSuccess(isViewingAsOther ? 'הפרטים נשמרו בהצלחה' : 'הפרטים נשמרו בהצלחה')
         // Go back to previous page after saving
         setSaving(false)
         handleGoBack()

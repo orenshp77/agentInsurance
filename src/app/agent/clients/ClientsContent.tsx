@@ -54,6 +54,7 @@ export default function ClientsContent() {
   const [agentName, setAgentName] = useState<string>('')
   const [viewAsUser, setViewAsUser] = useState<ViewAsUser | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   // Determine if admin is viewing as agent
   const isViewingAs = !!viewAsId && session?.user?.role === 'ADMIN'
@@ -148,6 +149,7 @@ export default function ClientsContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setSubmitting(true)
 
     try {
       const url = editingClient ? `/api/users/${editingClient.id}` : '/api/users'
@@ -180,6 +182,8 @@ export default function ClientsContent() {
       fetchClients()
     } catch (error) {
       showError(error instanceof Error ? error.message : 'שגיאה בשמירת הלקוח')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -596,9 +600,16 @@ export default function ClientsContent() {
         {/* Modal */}
         <Modal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => !submitting && setIsModalOpen(false)}
           title={editingClient ? 'עריכת לקוח' : 'הוספת לקוח חדש'}
         >
+          {submitting ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 border-4 border-accent/30 border-t-accent rounded-full animate-spin mb-6"></div>
+              <p className="text-xl font-medium text-accent">מחברים אותכם...</p>
+              <p className="text-sm text-foreground-muted mt-2">אנא המתן</p>
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               label="שם מלא"
@@ -649,6 +660,7 @@ export default function ClientsContent() {
               </Button>
             </div>
           </form>
+          )}
         </Modal>
       </div>
     </AppLayout>
