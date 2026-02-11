@@ -637,7 +637,7 @@ export default function DashboardContent() {
                   <img
                     src={withFreshCacheBust(agentLogo)}
                     alt={agentInfo?.name || 'לוגו'}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center p-4">
@@ -652,11 +652,11 @@ export default function DashboardContent() {
           )}
           {isClient && (
             <div className="flex flex-col items-center justify-center mb-8 animate-fade-in-up">
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-primary/30 shadow-primary/20">
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-white/10 border-4 shadow-2xl mb-4 border-primary/30 shadow-primary/20 flex items-center justify-center">
                 <img
                   src={withFreshCacheBust(agentLogo || '/uploads/logo-finance.png')}
                   alt={agentInfo?.name || 'מגן פיננסי'}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               </div>
               {agentInfo && (

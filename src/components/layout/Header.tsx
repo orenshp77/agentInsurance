@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Menu, X, LogOut, User, Bell, Settings, UserPlus, FileText, AlertTriangle } from 'lucide-react'
+import { Menu, X, LogOut, User, Bell, Settings, UserPlus, FileText, AlertTriangle, Database } from 'lucide-react'
 
 interface Activity {
   id: string
@@ -274,6 +274,13 @@ export default function Header() {
                     >
                       <AlertTriangle size={20} className="text-orange-400" />
                       <span>לוגים ותקלות</span>
+                    </button>
+                    <button
+                      onClick={() => { router.push('/admin/database'); setMenuOpen(false) }}
+                      className="w-full p-3 rounded-xl hover:bg-white/5 transition-all flex items-center gap-3 text-right"
+                    >
+                      <Database size={20} className="text-red-400" />
+                      <span>ניהול Database</span>
                     </button>
                   </>
                 )}

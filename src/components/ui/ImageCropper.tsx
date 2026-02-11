@@ -88,6 +88,16 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
     setCrop(centerAspectCrop(width, height, aspectRatio))
   }, [aspectRatio])
 
+  // Recenter crop when scale changes
+  const handleScaleChange = useCallback((newScale: number) => {
+    setScale(newScale)
+    // Reset crop to center with new scale
+    if (imgRef.current) {
+      const { width, height } = imgRef.current
+      setCrop(centerAspectCrop(width, height, aspectRatio))
+    }
+  }, [aspectRatio])
+
   const getCroppedImg = useCallback(async (): Promise<File | null> => {
     const image = imgRef.current
     const previewCanvas = previewCanvasRef.current
@@ -240,6 +250,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
                   maxHeight: '300px',
                   width: 'auto',
                   transform: `scale(${scale})`,
+                  transformOrigin: 'top left',
                 }}
                 onLoad={onImageLoad}
               />
@@ -250,7 +261,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
           <div className="flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => setScale(Math.max(0.5, scale - 0.1))}
+              onClick={() => handleScaleChange(Math.max(0.5, scale - 0.1))}
               className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 text-foreground hover:bg-white/10 transition-all flex items-center justify-center"
             >
               <ZoomOut size={18} />
@@ -260,7 +271,7 @@ const ImageCropper = forwardRef<ImageCropperRef, ImageCropperProps>(({
             </span>
             <button
               type="button"
-              onClick={() => setScale(Math.min(3, scale + 0.1))}
+              onClick={() => handleScaleChange(Math.min(3, scale + 0.1))}
               className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 text-foreground hover:bg-white/10 transition-all flex items-center justify-center"
             >
               <ZoomIn size={18} />

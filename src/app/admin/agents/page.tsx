@@ -672,7 +672,7 @@ export default function AdminAgentsPage() {
           onClose={() => setIsModalOpen(false)}
           title={editingAgent ? 'עריכת סוכן' : 'הוספת סוכן חדש'}
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Logo Upload */}
             <div>
               <label className="block text-sm font-medium mb-2 text-foreground-muted flex items-center gap-2">
@@ -682,11 +682,11 @@ export default function AdminAgentsPage() {
 
               {logoPreview || existingLogoUrl ? (
                 <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
-                  <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
+                  <div className="w-20 h-20 rounded-full overflow-hidden bg-white/10 flex-shrink-0 flex items-center justify-center">
                     <img
                       src={logoPreview || withFreshCacheBust(existingLogoUrl)}
                       alt="לוגו"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   </div>
                   <div className="flex-1">
@@ -736,6 +736,7 @@ export default function AdminAgentsPage() {
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required={!editingAgent}
               dir="ltr"
+              autoComplete="new-password"
             />
             <Input
               label="טלפון"
